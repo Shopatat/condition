@@ -568,20 +568,109 @@
       return v;
     }
 
+    /* --- Matières : le métal du jeu est poli, il renvoie la pièce autour de lui ---
+       Un cylindre poli n'a pas un dégradé doux : une bande blanche franche côté lumière, une chute
+       nette vers le sombre (le reflet du sol), puis un rebond de lumière près du bord opposé. */
+    const ENV = {
+      chrome: [[0, "#1d1c1b"], [0.06, "#6a6660"], [0.15, "#d9d4cc"], [0.22, "#ffffff"], [0.29, "#fbf8f2"], [0.35, "#aaa49b"],
+        [0.46, "#55514c"], [0.58, "#26241f"], [0.7, "#45423d"], [0.82, "#968f85"], [0.9, "#6a655e"], [1, "#171614"]],
+      cream: [[0, "#2a2620"], [0.08, "#8d8576"], [0.2, "#efe8da"], [0.28, "#fffcf4"], [0.4, "#e9e1d1"], [0.58, "#b9b0a0"],
+        [0.76, "#7b7366"], [0.88, "#9a9183"], [0.95, "#4c463e"], [1, "#1e1b17"]],
+      copper: [[0, "#2c1611"], [0.1, "#8a5546"], [0.22, "#f2c6b0"], [0.3, "#fff0e6"], [0.4, "#d79a83"], [0.6, "#8a5444"],
+        [0.8, "#5a3328"], [0.9, "#7d4a3c"], [1, "#24120d"]],
+      black: [[0, "#000000"], [0.08, "#3a3b3c"], [0.16, "#c3c5c7"], [0.22, "#5a5b5d"], [0.4, "#1b1c1d"], [0.78, "#0e0f10"],
+        [0.9, "#36373a"], [1, "#050505"]],
+      gun: [[0, "#121212"], [0.1, "#6d6b68"], [0.2, "#a9a6a1"], [0.3, "#5a5855"], [0.55, "#353432"], [0.85, "#4a4846"], [1, "#161515"]],
+    };
+    // Cylindre poli. axis "v" : cylindre debout, reflets de gauche à droite ; "h" : couché, reflets de haut en bas
+    function cylinder(c, x0, y0, x1, y1, r, axis, env, streaks = 0.6) {
+      fill(c, x0, y0, x1, y1, r, axis === "v" ? grad(c, x0, 0, x1, 0, ENV[env]) : grad(c, 0, y0, 0, y1, ENV[env]));
+      if (!streaks) return;
+      // Stries d'usinage le long de l'axe
+      c.save();
+      box(c, x0, y0, x1, y1, r); c.clip();
+      const lw = Math.max(0.5, k * 0.0025), s = x0 * 13.7 + y0 * 7.3 + x1;
+      for (let i = 0; i < 46; i++) {
+        const a = rnd(s + i * 1.37), light = rnd(s + i * 3.1) > 0.5;
+        c.fillStyle = light ? `rgba(255,255,255,${((0.05 + 0.12 * a) * streaks).toFixed(3)})` : `rgba(0,0,0,${((0.06 + 0.16 * a) * streaks).toFixed(3)})`;
+        if (axis === "v") c.fillRect(X(x0 + (x1 - x0) * rnd(s + i * 1.7)), Y(y0), lw, (y1 - y0) * k);
+        else c.fillRect(X(x0), Y(y0 + (y1 - y0) * rnd(s + i * 1.7)), (x1 - x0) * k, lw);
+      }
+      c.restore();
+    }
+    // Arêtes : fil de lumière en haut et à gauche, ombre en bas et à droite
+    function bevel(c, x0, y0, x1, y1, a = 1) {
+      const lw = Math.max(1, k * 0.007);
+      c.fillStyle = `rgba(255,255,255,${0.8 * a})`; c.fillRect(X(x0), Y(y0), (x1 - x0) * k, lw);
+      c.fillStyle = `rgba(255,255,255,${0.35 * a})`; c.fillRect(X(x0), Y(y0), lw, (y1 - y0) * k);
+      c.fillStyle = `rgba(0,0,0,${0.65 * a})`; c.fillRect(X(x0), Y(y1) - lw, (x1 - x0) * k, lw);
+      c.fillStyle = `rgba(0,0,0,${0.45 * a})`; c.fillRect(X(x1) - lw, Y(y0), lw, (y1 - y0) * k);
+    }
+    // Éclat spéculaire, ajouté à la lumière et contenu dans la pièce : rect [x0, y0, x1, y1] ou cercle [cx, cy, r]
+    function glint(c, x, y, r, a, clip) {
+      const gr = c.createRadialGradient(X(x), Y(y), 0, X(x), Y(y), r * k);
+      gr.addColorStop(0, `rgba(255,255,255,${a})`);
+      gr.addColorStop(0.12, `rgba(255,252,246,${a * 0.6})`);
+      gr.addColorStop(0.4, `rgba(255,250,240,${a * 0.15})`);
+      gr.addColorStop(1, "rgba(255,250,240,0)");
+      c.save();
+      c.beginPath();
+      if (clip.length === 3) c.arc(X(clip[0]), Y(clip[1]), clip[2] * k, 0, Math.PI * 2);
+      else c.rect(X(clip[0]), Y(clip[1]), (clip[2] - clip[0]) * k, (clip[3] - clip[1]) * k);
+      c.clip();
+      c.globalCompositeOperation = "lighter";
+      c.fillStyle = gr;
+      c.fillRect(X(x - r), Y(y - r), 2 * r * k, 2 * r * k);
+      c.restore();
+    }
+    // Plaque de métal poli : teinte de base, reflets en larges bandes obliques, reflets chauds de la pièce, brossage, arêtes
+    function plate(c, x0, y0, x1, y1, r, tint, s, brushed = 1) {
+      fill(c, x0, y0, x1, y1, r, grad(c, 0, y0, 0, y1, [[0, tint[0]], [0.45, tint[1]], [1, tint[2]]]));
+      c.save();
+      box(c, x0, y0, x1, y1, r); c.clip();
+      const w = x1 - x0, h = y1 - y0;
+      c.fillStyle = grad(c, x0, y0, x0 + w * 0.55 + h * 0.6, y1, [[0, "rgba(255,255,255,0)"], [0.24, "rgba(255,255,255,0.04)"],
+        [0.31, "rgba(255,255,255,0.55)"], [0.36, "rgba(255,255,255,0.12)"], [0.52, "rgba(0,0,0,0.22)"], [0.66, "rgba(0,0,0,0.05)"],
+        [0.74, "rgba(255,255,255,0.22)"], [0.8, "rgba(255,255,255,0)"], [1, "rgba(0,0,0,0.25)"]]);
+      c.fillRect(X(x0), Y(y0), w * k, h * k);
+      for (let i = 0; i < 3; i++) {
+        const cx = x0 + w * rnd(s + i * 2.3), cy = y0 + h * rnd(s + i * 4.1), rr = Math.max(w, h) * (0.15 + 0.2 * rnd(s + i * 5.9));
+        const gr = c.createRadialGradient(X(cx), Y(cy), 0, X(cx), Y(cy), rr * k);
+        gr.addColorStop(0, "rgba(130,86,58,0.32)"); gr.addColorStop(1, "rgba(130,86,58,0)");
+        c.fillStyle = gr; c.fillRect(X(cx - rr), Y(cy - rr), 2 * rr * k, 2 * rr * k);
+      }
+      c.restore();
+      if (brushed) wear(c, x0, y0, x1, y1, s, Math.round(40 * brushed), false);
+      bevel(c, x0, y0, x1, y1);
+    }
+
     /* --- La caisse de l'appareil : dessinée une fois par redimensionnement --- */
+    function ring(c, cx, cy, r0, r1, stops, from) {
+      let style;
+      if (c.createConicGradient) {
+        style = c.createConicGradient(from, cx, cy);
+        for (const [o, col] of stops) style.addColorStop(o, col);
+      } else style = stops[Math.floor(stops.length / 2)][1];
+      c.beginPath(); c.arc(cx, cy, r1, 0, Math.PI * 2); c.arc(cx, cy, r0, 0, Math.PI * 2, true);
+      c.fillStyle = style; c.fill("evenodd");
+    }
+    // Reflets en croissant d'un anneau poli, pris dans le sens du tour
+    const RING = [[0, "#3b302f"], [0.08, "#f7ecea"], [0.14, "#fffaf8"], [0.22, "#9d8b89"], [0.36, "#4a3d3c"], [0.5, "#8f7c7a"],
+      [0.58, "#efe3e1"], [0.64, "#b7a5a3"], [0.78, "#3e3332"], [0.9, "#7c6a68"], [1, "#3b302f"]];
     function drawDial(c) {
       const cx = X(DIAL.x), cy = Y(DIAL.y), R = DIAL.r * k;
       const disc = (r) => { c.beginPath(); c.arc(cx, cy, r * R, 0, Math.PI * 2); };
       c.save();
-      c.shadowColor = "rgba(0,0,0,0.65)";
-      c.shadowBlur = 0.035 * k * dpr; c.shadowOffsetX = 0.012 * k * dpr; c.shadowOffsetY = 0.025 * k * dpr;
-      disc(1);
-      c.fillStyle = grad(c, DIAL.x - DIAL.r, DIAL.y - DIAL.r, DIAL.x + DIAL.r * 0.6, DIAL.y + DIAL.r, [[0, "#f4e8e5"], [0.35, "#bba9a7"], [0.7, "#6f5f5e"], [1, "#3b302f"]]);
-      c.fill();
+      c.shadowColor = "rgba(0,0,0,0.7)";
+      c.shadowBlur = 0.04 * k * dpr; c.shadowOffsetX = 0.012 * k * dpr; c.shadowOffsetY = 0.028 * k * dpr;
+      disc(1); c.fillStyle = "#4a3d3c"; c.fill();
       c.restore();
+      ring(c, cx, cy, R * 0.9, R, RING, -0.6);
       disc(0.9);
-      c.fillStyle = grad(c, DIAL.x - DIAL.r, DIAL.y - DIAL.r, DIAL.x + DIAL.r, DIAL.y + DIAL.r, [[0, "#c9b8b6"], [0.5, "#8c7b79"], [1, "#4a3d3c"]]);
+      c.fillStyle = grad(c, DIAL.x - DIAL.r, DIAL.y - DIAL.r, DIAL.x + DIAL.r, DIAL.y + DIAL.r, [[0, "#d5c4c2"], [0.3, "#a28f8d"], [0.55, "#6d5b5a"], [0.75, "#8e7b79"], [1, "#3e3231"]]);
       c.fill();
+      ring(c, cx, cy, R * 0.6, R * 0.9, [[0, "rgba(255,255,255,0)"], [0.1, "rgba(255,255,255,0.35)"], [0.2, "rgba(255,255,255,0)"],
+        [0.55, "rgba(255,255,255,0)"], [0.62, "rgba(255,255,255,0.25)"], [0.7, "rgba(255,255,255,0)"], [1, "rgba(255,255,255,0)"]], -0.6);
       // Couronne de fentes rectangulaires
       for (let i = 0; i < 28; i++) {
         const a = (i / 28) * Math.PI * 2, da = 0.07;
@@ -589,29 +678,40 @@
         c.arc(cx, cy, R * 0.85, a - da, a + da);
         c.arc(cx, cy, R * 0.65, a + da * 1.3, a - da * 1.3, true);
         c.closePath();
-        c.fillStyle = "#171313"; c.fill();
-        c.strokeStyle = "rgba(240,225,222,0.35)"; c.lineWidth = Math.max(0.5, k * 0.003); c.stroke();
+        c.fillStyle = "#130f0f"; c.fill();
+        c.strokeStyle = "rgba(255,240,236,0.45)"; c.lineWidth = Math.max(0.5, k * 0.003); c.stroke();
       }
       // Bande sombre percée de petits trous clairs
-      disc(0.6); c.fillStyle = "#3a3131"; c.fill();
+      disc(0.6); c.fillStyle = "#332a2a"; c.fill();
       for (let i = 0; i < 20; i++) {
         const a = (i / 20) * Math.PI * 2 + 0.08;
         c.beginPath(); c.arc(cx + Math.cos(a) * R * 0.5, cy + Math.sin(a) * R * 0.5, R * 0.05, 0, Math.PI * 2);
-        c.fillStyle = "#cfc3c1"; c.fill();
+        c.fillStyle = "#dacfcd"; c.fill();
       }
-      disc(0.4);
-      c.fillStyle = grad(c, DIAL.x - DIAL.r * 0.4, DIAL.y - DIAL.r * 0.4, DIAL.x + DIAL.r * 0.4, DIAL.y + DIAL.r * 0.4, [[0, "#7d706f"], [1, "#2e2726"]]);
+      ring(c, cx, cy, R * 0.38, R * 0.42, RING, 0.4);
+      disc(0.38);
+      c.fillStyle = grad(c, DIAL.x - DIAL.r * 0.4, DIAL.y - DIAL.r * 0.4, DIAL.x + DIAL.r * 0.4, DIAL.y + DIAL.r * 0.4, [[0, "#8a7c7b"], [1, "#2a2322"]]);
       c.fill();
+      const dc = [DIAL.x, DIAL.y, DIAL.r];
+      glint(c, DIAL.x + DIAL.r * 0.55, DIAL.y - DIAL.r * 0.72, 0.07, 0.8, dc);
+      glint(c, DIAL.x + DIAL.r * 0.8, DIAL.y + DIAL.r * 0.5, 0.05, 0.45, dc);
     }
 
     function drawHandle(c) {
-      const chrome = [[0, "#4f4b46"], [0.3, "#d8d2c8"], [0.45, "#fffaf1"], [0.7, "#b4ada3"], [1, "#4a4641"]];
-      vfill(c, 3.04, 0.25, 3.27, 0.33, 0.02, [[0, "#f2ede4"], [0.5, "#b5aea4"], [1, "#4d4843"]]);
-      vfill(c, 3.04, 1.92, 3.27, 2.0, 0.02, [[0, "#e8e2d8"], [0.5, "#a9a298"], [1, "#46413c"]]);
-      hfill(c, 3.17, 0.27, 3.27, 1.98, 0.05, chrome);
+      // Attaches haute et basse, puis la barre crème polie, puis les deux colliers noirs vernis
+      cylinder(c, 3.03, 0.25, 3.27, 0.335, 0.02, "h", "cream", 0.4);
+      cylinder(c, 3.03, 1.915, 3.27, 2.0, 0.02, "h", "cream", 0.4);
+      cylinder(c, 3.17, 0.27, 3.27, 1.98, 0.05, "v", "cream", 0.7);
+      glint(c, 3.2, 0.4, 0.06, 0.8, [3.17, 0.27, 3.27, 1.98]);
+      glint(c, 3.2, 1.05, 0.09, 0.55, [3.17, 0.27, 3.27, 1.98]);
       for (const [y0, y1] of [[0.575, 0.71], [1.42, 1.555]]) {
-        vfill(c, 3.05, y0, 3.37, y1, 0.02, [[0, "#5a5b5b"], [0.18, "#3a3b3b"], [1, "#1c1d1d"]]);
-        fill(c, 3.05, y0, 3.37, y0 + 0.012, 0, "rgba(255,255,255,0.18)");
+        c.save();
+        c.shadowColor = "rgba(0,0,0,0.7)"; c.shadowBlur = 0.03 * k * dpr; c.shadowOffsetY = 0.02 * k * dpr;
+        fill(c, 3.05, y0, 3.37, y1, 0.02, "#111");
+        c.restore();
+        cylinder(c, 3.05, y0, 3.37, y1, 0.02, "h", "black", 0.3);
+        fill(c, 3.05, y0, 3.37, y0 + 0.008, 0.004, "rgba(255,255,255,0.55)");
+        glint(c, 3.12, y0 + 0.03, 0.05, 0.55, [3.05, y0, 3.37, y1]);
       }
     }
 
@@ -625,10 +725,12 @@
       c.restore();
       c.clearRect(X(PAPER.x0), Y(PAPER.y0), (PAPER.x1 - PAPER.x0) * k, (PAPER.y1 - PAPER.y0) * k);
 
-      // Bords de la fenêtre du papier : lèvre sombre en haut, montant clair à gauche, montant sombre à droite
-      vfill(c, 0.7, 0.12, 3.07, 0.186, 0, [[0, "#cfcac2"], [0.1, "#8a8680"], [0.25, "#4b4845"], [1, "#2b2826"]]);
-      hfill(c, 0.7, 0.186, 0.75, 1.706, 0, [[0, "#5e5852"], [0.45, "#cbc2b8"], [1, "#8f857b"]]);
-      hfill(c, 3.007, 0.186, 3.07, 1.706, 0, [[0, "#0e0c0b"], [0.6, "#22201e"], [1, "#3a3633"]]);
+      // Bords de la fenêtre : barre sombre vernie en haut, montant chromé à gauche, montant noir à droite
+      cylinder(c, 0.7, 0.12, 3.07, 0.186, 0, "h", "black", 0.5);
+      fill(c, 0.7, 0.12, 3.07, 0.128, 0, "rgba(255,255,255,0.45)");
+      glint(c, 1.15, 0.135, 0.08, 0.5, [0.7, 0.12, 3.07, 0.186]); glint(c, 2.4, 0.135, 0.12, 0.35, [0.7, 0.12, 3.07, 0.186]);
+      cylinder(c, 0.7, 0.186, 0.75, 1.706, 0, "v", "chrome", 0.3);
+      cylinder(c, 3.007, 0.186, 3.07, 1.706, 0, "v", "black", 0.3);
 
       // Ce qui recouvre le papier sans défiler : ombre de la lèvre, reflet, bande roussie, bords assombris
       vfill(c, PAPER.x0, PAPER.y0, PAPER.x1, 0.37, 0, [[0, "rgba(10,8,6,0.85)"], [0.08, "rgba(10,8,6,0.1)"],
@@ -637,55 +739,74 @@
       hfill(c, PAPER.x1 - 0.08, PAPER.y0, PAPER.x1, PAPER.y1, 0, [[0, "rgba(0,0,0,0)"], [1, "rgba(0,0,0,0.5)"]]);
       vfill(c, PAPER.x0, PAPER.y1 - 0.06, PAPER.x1, PAPER.y1, 0, [[0, "rgba(0,0,0,0)"], [1, "rgba(0,0,0,0.4)"]]);
 
-      // Panneau du bas, sombre à gauche et clair à droite, avec la fenêtre de la plaque
-      hfill(c, 0.7, 1.706, 3.07, 2.05, 0, [[0, "#57483f"], [0.25, "#6c5c52"], [0.55, "#a39589"], [0.8, "#c7bab0"], [1, "#9b8f86"]]);
-      wear(c, 0.7, 1.706, 3.07, 2.05, 7, 46, false);
-      vfill(c, 0.7, 1.706, 3.07, 1.74, 0, [[0, "rgba(0,0,0,0.7)"], [1, "rgba(0,0,0,0)"]]);
-      vfill(c, 0.7, 2.0, 3.07, 2.05, 0, [[0, "rgba(0,0,0,0)"], [1, "rgba(0,0,0,0.5)"]]);
-      const e = 0.018;
-      vfill(c, PLATE.x0 - e, PLATE.y0 - e, PLATE.x1 + e, PLATE.y1 + e, 0.006, [[0, "#1c1a18"], [0.5, "#5d564f"], [1, "#ddd5cb"]]);
+      // Panneau du bas : acier poli aux reflets rosés, plus sombre à gauche, avec la fenêtre de la plaque
+      plate(c, 0.7, 1.706, 3.07, 2.05, 0, ["#cfc1b7", "#a39488", "#6d5e55"], 7);
+      hfill(c, 0.7, 1.706, 3.07, 2.05, 0, [[0, "rgba(30,18,12,0.55)"], [0.3, "rgba(30,18,12,0.25)"], [0.6, "rgba(30,18,12,0)"], [1, "rgba(30,18,12,0.1)"]]);
+      vfill(c, 0.7, 1.706, 3.07, 1.745, 0, [[0, "rgba(0,0,0,0.75)"], [1, "rgba(0,0,0,0)"]]);
+      cylinder(c, 0.7, 2.0, 3.07, 2.05, 0, "h", "black", 0.3);
+      glint(c, 2.75, 1.79, 0.1, 0.35, [0.7, 1.706, 3.07, 2.0]);
+      // Fenêtre de la plaque : cadre chromé biseauté, émail clair, reflet de verre
+      const e = 0.024;
+      fill(c, PLATE.x0 - e, PLATE.y0 - e, PLATE.x1 + e, PLATE.y1 + e, 0.006,
+        grad(c, PLATE.x0 - e, PLATE.y0 - e, PLATE.x1 + e, PLATE.y1 + e, [[0, "#3a3633"], [0.2, "#8c867e"], [0.32, "#f2eee8"], [0.4, "#7a756e"], [0.62, "#2e2b28"], [0.8, "#bfb8ae"], [1, "#4a4540"]]));
+      fill(c, PLATE.x0 - 0.006, PLATE.y0 - 0.006, PLATE.x1 + 0.006, PLATE.y1 + 0.006, 0.003, "#151311");
       hfill(c, PLATE.x0, PLATE.y0, PLATE.x1, PLATE.y1, 0, [[0, "#8a8f81"], [0.12, "#b8bdaf"], [0.5, "#dce1d4"], [0.88, "#b8bdaf"], [1, "#878b7e"]]);
       wear(c, PLATE.x0, PLATE.y0, PLATE.x1, PLATE.y1, 21, 70, true);
-      vfill(c, PLATE.x0, PLATE.y0, PLATE.x1, PLATE.y1, 0, [[0, "rgba(0,0,0,0.45)"], [0.18, "rgba(0,0,0,0)"], [0.82, "rgba(0,0,0,0)"], [1, "rgba(0,0,0,0.22)"]]);
+      vfill(c, PLATE.x0, PLATE.y0, PLATE.x1, PLATE.y1, 0, [[0, "rgba(0,0,0,0.5)"], [0.2, "rgba(0,0,0,0)"], [0.82, "rgba(0,0,0,0)"], [1, "rgba(0,0,0,0.25)"]]);
+      fill(c, PLATE.x0, PLATE.y0, PLATE.x1, PLATE.y1, 0, grad(c, PLATE.x0, PLATE.y0, PLATE.x0 + 0.5, PLATE.y1 + 0.3,
+        [[0, "rgba(255,255,255,0)"], [0.35, "rgba(255,255,255,0)"], [0.45, "rgba(255,255,255,0.28)"], [0.55, "rgba(255,255,255,0)"], [1, "rgba(255,255,255,0)"]]));
 
-      // Colonne de gauche : écrou, support à fente, tube de la fiole, support à encoches
-      hfill(c, 0.14, 0.02, 0.4, 0.2, 0.015, [[0, "#4b4843"], [0.25, "#bdb9b1"], [0.4, "#f4f1ea"], [0.6, "#a8a49c"], [1, "#45423e"]]);
-      fill(c, 0.14, 0.02, 0.4, 0.04, 0.01, "rgba(255,255,255,0.3)");
-      vfill(c, 0.03, 0.17, 0.75, 0.46, 0.02, [[0, "#f0ece6"], [0.15, "#d0cbc4"], [0.6, "#a59f97"], [0.92, "#6e6861"], [1, "#3f3b37"]]);
-      wear(c, 0.03, 0.17, 0.75, 0.46, 11, 30, false);
-      hfill(c, 0.03, 0.17, 0.1, 0.46, 0.02, [[0, "rgba(0,0,0,0.45)"], [1, "rgba(0,0,0,0)"]]);
-      fill(c, 0.11, 0.355, 0.29, 0.395, 0.018, "#1d1a18");
-      fill(c, 0.11, 0.395, 0.29, 0.404, 0.004, "rgba(255,255,255,0.5)");
-      vfill(c, 0.03, 1.75, 0.75, 2.03, 0.02, [[0, "#3f3b37"], [0.08, "#dbd6cd"], [0.4, "#beb7ab"], [0.85, "#8a8378"], [1, "#4a453f"]]);
-      wear(c, 0.03, 1.75, 0.75, 2.03, 31, 26, false);
-      for (const [x0, x1] of [[0.12, 0.17], [0.22, 0.27]]) {
-        fill(c, x0, 1.78, x1, 1.94, 0.025, "#26221e");
-        fill(c, x0 + 0.008, 1.92, x1 - 0.008, 1.935, 0.006, "rgba(255,255,255,0.25)");
+      // Colonne de gauche : écrou, support à fente, tube de la fiole, support à pattes, rebord noir
+      cylinder(c, 0.14, 0.02, 0.4, 0.2, 0.015, "v", "chrome", 0.8);
+      fill(c, 0.14, 0.02, 0.4, 0.05, 0.012, grad(c, 0.14, 0, 0.4, 0, [[0, "#6a6660"], [0.3, "#ffffff"], [0.6, "#c9c4bc"], [1, "#55514c"]]));
+      glint(c, 0.215, 0.09, 0.06, 0.85, [0.14, 0.02, 0.4, 0.2]);
+      plate(c, 0.03, 0.17, 0.75, 0.46, 0.02, ["#f6f3ee", "#c3bdb5", "#6f6962"], 11, 0.8);
+      hfill(c, 0.03, 0.17, 0.1, 0.46, 0.02, [[0, "rgba(0,0,0,0.5)"], [1, "rgba(0,0,0,0)"]]);
+      cylinder(c, 0.11, 0.355, 0.29, 0.395, 0.018, "h", "black", 0);
+      fill(c, 0.11, 0.395, 0.29, 0.404, 0.004, "rgba(255,255,255,0.6)");
+      glint(c, 0.08, 0.2, 0.07, 0.8, [0.03, 0.17, 0.75, 0.46]);
+      plate(c, 0.03, 1.75, 0.75, 2.0, 0.02, ["#9a9187", "#6f665d", "#3e3833"], 31, 0.6);
+      for (const [x0, x1] of [[0.11, 0.175], [0.21, 0.275]]) {
+        cylinder(c, x0, 1.77, x1, 1.95, 0.03, "v", "cream", 0.3);
+        glint(c, x0 + (x1 - x0) * 0.3, 1.8, 0.035, 0.7, [x0, 1.77, x1, 1.95]);
       }
+      cylinder(c, 0.03, 1.97, 0.75, 2.03, 0.01, "h", "black", 0.3);
 
       // Le cadran perforé, à moitié caché par le bloc du mécanisme
       drawDial(c);
       fill(c, 0.04, VIAL.y0 - 0.03, 0.34, VIAL.y1 + 0.03, 0, "#040604");
-      c.beginPath();
-      c.moveTo(X(0.33), Y(0.45)); c.lineTo(X(0.72), Y(0.45)); c.lineTo(X(0.72), Y(0.69));
-      c.quadraticCurveTo(X(0.72), Y(0.74), X(0.67), Y(0.74)); c.lineTo(X(0.52), Y(0.74));
-      c.lineTo(X(0.52), Y(1.78)); c.lineTo(X(0.33), Y(1.78)); c.closePath();
-      c.fillStyle = grad(c, 0.33, 0, 0.72, 0, [[0, "#76736f"], [0.1, "#55524f"], [0.6, "#403e3c"], [1, "#2f2e2c"]]);
+      const block = () => {
+        c.beginPath();
+        c.moveTo(X(0.33), Y(0.45)); c.lineTo(X(0.72), Y(0.45)); c.lineTo(X(0.72), Y(0.69));
+        c.quadraticCurveTo(X(0.72), Y(0.74), X(0.67), Y(0.74)); c.lineTo(X(0.52), Y(0.74));
+        c.lineTo(X(0.52), Y(1.78)); c.lineTo(X(0.33), Y(1.78)); c.closePath();
+      };
+      block();
+      c.fillStyle = grad(c, 0.33, 0, 0.52, 0, ENV.gun);
       c.fill();
-      c.save(); c.clip(); wear(c, 0.33, 0.45, 0.72, 1.78, 41, 14, true); c.restore();
-      // Molette en haut du bloc
-      circle(c, 0.55, 0.557, 0.075, "#161616");
-      c.lineWidth = Math.max(0.6, k * 0.008); c.strokeStyle = "rgba(150,150,150,0.6)"; c.stroke();
+      c.save();
+      block(); c.clip();
+      wear(c, 0.33, 0.45, 0.72, 1.78, 41, 14, true);
+      fill(c, 0.33, 0.45, 0.72, 0.74, 0, grad(c, 0, 0.45, 0, 0.74, [[0, "rgba(255,255,255,0.35)"], [0.15, "rgba(255,255,255,0.05)"], [1, "rgba(0,0,0,0.3)"]]));
+      c.restore();
+      fill(c, 0.33, 0.45, 0.72, 0.456, 0, "rgba(255,255,255,0.5)");
+      fill(c, 0.33, 0.45, 0.336, 1.78, 0, "rgba(255,255,255,0.25)");
+      // Molette en haut du bloc : anneau poli, dôme chromé
+      circle(c, 0.55, 0.557, 0.075, "#141414");
+      ring(c, X(0.55), Y(0.557), 0.06 * k, 0.075 * k, [[0, "#222"], [0.12, "#e8e8ea"], [0.25, "#555"], [0.55, "#1c1c1c"], [0.65, "#a9a9ab"], [0.8, "#333"], [1, "#222"]], -0.8);
       c.beginPath(); c.arc(X(0.55), Y(0.557), 0.032 * k, 0, Math.PI * 2);
-      c.fillStyle = grad(c, 0.52, 0.53, 0.58, 0.59, [[0, "#d2d2d4"], [1, "#4a4a4c"]]); c.fill();
+      const dome = c.createRadialGradient(X(0.54), Y(0.546), 0, X(0.55), Y(0.557), 0.032 * k);
+      dome.addColorStop(0, "#ffffff"); dome.addColorStop(0.35, "#bdbdc0"); dome.addColorStop(1, "#3a3a3c");
+      c.fillStyle = dome; c.fill();
       // Boulons sous le cadran
-      for (const [x0, x1] of [[0.36, 0.415], [0.445, 0.5]]) hfill(c, x0, 1.53, x1, 1.72, 0.012, [[0, "#2c2b2a"], [0.35, "#b9b6b0"], [0.5, "#e8e4dc"], [1, "#3a3836"]]);
-      // Bossage sombre sous le pivot du stylet
+      for (const [x0, x1] of [[0.36, 0.415], [0.445, 0.5]]) cylinder(c, x0, 1.53, x1, 1.72, 0.012, "v", "chrome", 0.6);
+      // Bossage sombre et verni sous le pivot du stylet
       c.beginPath(); c.arc(X(PIV.x), Y(PIV.y), 0.15 * k, 0, Math.PI * 2);
-      const boss = c.createRadialGradient(X(PIV.x - 0.04), Y(PIV.y - 0.04), 0, X(PIV.x), Y(PIV.y), 0.15 * k);
-      boss.addColorStop(0, "#43413f"); boss.addColorStop(1, "#1a1918");
+      const boss = c.createRadialGradient(X(PIV.x - 0.05), Y(PIV.y - 0.06), 0, X(PIV.x), Y(PIV.y), 0.15 * k);
+      boss.addColorStop(0, "#5a5856"); boss.addColorStop(0.35, "#2a2928"); boss.addColorStop(1, "#121110");
       c.fillStyle = boss; c.fill();
-      c.lineWidth = Math.max(0.6, k * 0.006); c.strokeStyle = "rgba(120,114,108,0.55)"; c.stroke();
+      ring(c, X(PIV.x), Y(PIV.y), 0.138 * k, 0.15 * k, [[0, "#222"], [0.1, "#d9d6d2"], [0.22, "#3a3836"], [0.6, "#1a1918"], [0.7, "#8a8682"], [0.85, "#2a2928"], [1, "#222"]], -0.9);
+      glint(c, PIV.x - 0.06, PIV.y - 0.09, 0.04, 0.6, [PIV.x, PIV.y, 0.15]);
 
       drawHandle(c);
     }
@@ -762,18 +883,24 @@
       c.shadowColor = "rgba(0,0,0,0.5)";
       c.shadowBlur = 0.025 * k * dpr; c.shadowOffsetX = 0.012 * k * dpr; c.shadowOffsetY = 0.04 * k * dpr;
       const body = c.createLinearGradient(0, -0.03, 0, 0.03);
-      body.addColorStop(0, "#fffbf3"); body.addColorStop(0.35, "#e9e0d0"); body.addColorStop(0.75, "#b4a997"); body.addColorStop(1, "#6c6255");
+      for (const [o, col] of ENV.cream) body.addColorStop(o, col);
       c.fillStyle = body;
       c.beginPath();
       c.moveTo(0.12, -0.03); c.lineTo(ARM - 0.006, -0.019); c.quadraticCurveTo(ARM, -0.019, ARM, -0.012);
       c.lineTo(ARM, 0.012); c.quadraticCurveTo(ARM, 0.019, ARM - 0.006, 0.019); c.lineTo(0.12, 0.03); c.closePath();
       c.fill();
       const head = c.createLinearGradient(0, -0.034, 0, 0.034);
-      head.addColorStop(0, "#f7cfb8"); head.addColorStop(0.45, "#d4967f"); head.addColorStop(1, "#8a5546");
+      for (const [o, col] of ENV.copper) head.addColorStop(o, col);
       c.fillStyle = head;
       capsule(c, -0.05, 0.16, 0.034);
       c.fill();
       c.shadowColor = "transparent";
+      // Fil de lumière le long du bras, éclat sur la tête cuivrée
+      c.fillStyle = "rgba(255,255,255,0.75)";
+      c.beginPath(); c.moveTo(0.17, -0.022); c.lineTo(ARM - 0.02, -0.013); c.lineTo(ARM - 0.02, -0.010); c.lineTo(0.17, -0.017); c.closePath(); c.fill();
+      const hl = c.createRadialGradient(0.07, -0.016, 0, 0.07, -0.016, 0.06);
+      hl.addColorStop(0, "rgba(255,255,255,0.85)"); hl.addColorStop(1, "rgba(255,255,255,0)");
+      c.fillStyle = hl; c.fillRect(0.01, -0.034, 0.12, 0.03);
       c.fillStyle = "rgba(70,58,46,0.55)";
       c.fillRect(ARM - 0.007, -0.013, 0.007, 0.026);
       c.beginPath(); c.arc(0, 0, 0.014, 0, Math.PI * 2); c.fillStyle = "#2b1c18"; c.fill();

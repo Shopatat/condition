@@ -226,7 +226,7 @@ main { max-width: min(920px, calc((100vh - 190px) * 2.5 + 24px)); }
   --gill: "Gill Sans", "Gill Sans MT", Calibri, system-ui, sans-serif;
   --salmon: #eba58c;
   --silver: #a8a7a2;
-  --copper: #e0bd98;
+  --copper: #f0d2b0;
 }
 .theme-remake body, .theme-remake.focus body { background: #000; }
 .theme-remake main { gap: 16px; }
@@ -267,8 +267,9 @@ main { max-width: min(920px, calc((100vh - 190px) * 2.5 + 24px)); }
   border: 3px solid transparent;
   background:
     linear-gradient(#030303, #030303) padding-box,
-    linear-gradient(135deg, #fbfaf6 0%, #8e8b86 20%, #d8d5cf 48%, #75726d 78%, #f3f1ec 100%) border-box;
-  box-shadow: 0 0 0 1px #000, inset 0 0 0 1px #000, inset 0 0 14px rgba(0, 0, 0, 0.9);
+    linear-gradient(100deg, #ffffff 0%, #a19d96 7%, #3b3835 15%, #8f8b84 27%, #ffffff 33%, #e9e6e0 37%, #77736d 46%,
+      #2a2826 58%, #6b6761 70%, #f4f2ee 78%, #ffffff 81%, #8c8882 88%, #3a3734 95%, #cfcbc4 100%) border-box;
+  box-shadow: 0 0 0 1px #000, 0 2px 6px rgba(0, 0, 0, 0.9), inset 0 0 0 1px #000, inset 0 0 14px rgba(0, 0, 0, 0.9);
   transition: opacity 0.5s;
 }
 .theme-remake.focus .phase-plate {
@@ -281,7 +282,16 @@ main { max-width: min(920px, calc((100vh - 190px) * 2.5 + 24px)); }
 
 /* Boutons du haut, comme « Quitter », « Fichier », « Carte » : médaillon rond et libellé à côté */
 .theme-remake .bar { order: -1; justify-content: center; gap: 14px 22px; }
-.theme-remake .controls { justify-content: center; gap: 12px 22px; }
+/* Barre noire vernie où sont posés les médaillons, liseré de lumière en haut et reflet en bas */
+.theme-remake .controls {
+  justify-content: center; gap: 12px 22px;
+  padding: 7px 20px 7px 8px;
+  border-radius: 30px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0) 55%, rgba(255, 255, 255, 0.07) 80%, rgba(255, 255, 255, 0) 100%),
+    linear-gradient(180deg, #6d6b67 0, #262523 4%, #0c0c0c 30%, #050505 60%, #1e1d1c 88%, #4a4845 97%, #0a0a0a 100%);
+  box-shadow: 0 0 0 1px #000, inset 0 1px 0 rgba(255, 255, 255, 0.6), inset 0 -1px 0 rgba(255, 255, 255, 0.2), 0 5px 12px rgba(0, 0, 0, 0.85);
+}
 .theme-remake button, .theme-remake button.primary {
   display: inline-flex; align-items: center; gap: 10px;
   min-width: 0;
@@ -297,11 +307,17 @@ main { max-width: min(920px, calc((100vh - 190px) * 2.5 + 24px)); }
   display: grid; place-items: center; flex: none;
   width: 46px; height: 46px; border-radius: 50%;
   background:
-    radial-gradient(circle, #19150f 0 44%, #6e583a 45% 46.5%, rgba(0, 0, 0, 0) 47.5%),
-    linear-gradient(150deg, #fff3d6 0%, #cdb07f 26%, #5e4831 56%, #2a1f15 72%, #b49567 100%);
-  box-shadow: 0 0 0 1px #000, 0 3px 6px rgba(0, 0, 0, 0.85), inset 0 0 0 1px rgba(0, 0, 0, 0.6);
+    radial-gradient(circle, #16120d 0 41%, #3a2c1d 41.5% 42.5%, rgba(0, 0, 0, 0) 43.5%),
+    radial-gradient(circle, rgba(0, 0, 0, 0) 0 43.5%, rgba(0, 0, 0, 0.55) 44% 46%, rgba(0, 0, 0, 0) 47%),
+    conic-gradient(from 200deg, #3a2c1d, #fff6df 22deg, #e2c793 40deg, #5e4730 75deg, #1b140c 115deg, #4a3a27 160deg,
+      #e9d3a8 190deg, #fffaf0 205deg, #b8996a 230deg, #2c2116 290deg, #3a2c1d);
+  box-shadow: 0 0 0 1px #000, 0 3px 6px rgba(0, 0, 0, 0.85), inset 0 0 0 1px rgba(0, 0, 0, 0.7), inset 0 1px 1px rgba(255, 245, 220, 0.4);
 }
-.theme-remake .ico svg { width: 23px; height: 23px; fill: #ead7a8; filter: drop-shadow(0 1px 0 #000); }
+.theme-remake .ico svg {
+  width: 23px; height: 23px;
+  fill: url(#laiton);
+  filter: drop-shadow(0 1.5px 0 rgba(0, 0, 0, 0.95)) drop-shadow(0 -0.5px 0 rgba(255, 240, 200, 0.35));
+}
 .ico .i-pause, [data-ico="pause"] .i-play { display: none; }
 [data-ico="pause"] .i-pause { display: inline; }
 .theme-remake.focus .bar { background: rgba(0, 0, 0, 0.9); box-shadow: 0 0 0 1px #2c2b29; }
@@ -313,8 +329,8 @@ main { max-width: min(920px, calc((100vh - 190px) * 2.5 + 24px)); }
   position: relative;
   width: 38px; height: 38px;
   border: 0; border-radius: 0;
-  background: #262624;
-  box-shadow: inset 0 0 0 1px #3d3d3a, inset 0 0 10px rgba(0, 0, 0, 0.75);
+  background: linear-gradient(160deg, #34342f 0%, #232321 45%, #1a1a18 100%);
+  box-shadow: inset 0 0 0 1px #3d3d3a, inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 0 10px rgba(0, 0, 0, 0.75);
 }
 .theme-remake .dot.done {
   background: #262624 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 28'%3E%3Crect x='1' y='3' width='38' height='22' fill='%239b9486' stroke='%235a5045'/%3E%3Cpath d='M1 15h8l2-1.5 2 1.5h2l2-10 2.5 14 1.5-4h4l2-2.5 2.5 2.5h10' fill='none' stroke='%23587a47' stroke-width='1.7' stroke-linejoin='round'/%3E%3C/svg%3E") center / 80% no-repeat;
@@ -343,10 +359,12 @@ main { max-width: min(920px, calc((100vh - 190px) * 2.5 + 24px)); }
 /* La boîte de texte du bas, sous son rouleau de machine à écrire */
 .theme-remake .hint, .theme-remake .settings {
   position: relative;
-  background: #000;
-  border: 1px solid #2c2b29;
-  border-radius: 0;
-  box-shadow: 0 0 0 1px #000;
+  border: 2px solid transparent;
+  border-radius: 2px;
+  background:
+    linear-gradient(#000, #000) padding-box,
+    linear-gradient(180deg, #9d9993 0%, #3a3835 12%, #181716 45%, #55524e 75%, #1b1a19 100%) border-box;
+  box-shadow: 0 0 0 1px #000, 0 6px 14px rgba(0, 0, 0, 0.8);
   font-family: var(--gill);
   color: #ece8db;
 }
@@ -362,17 +380,20 @@ main { max-width: min(920px, calc((100vh - 190px) * 2.5 + 24px)); }
   position: absolute; left: 8px; right: 8px; top: 9px;
   height: 26px; border-radius: 13px;
 }
+/* Le rouleau : chrome poli, bande blanche éclatante, chute nette vers le sombre strié, embouts en cuivre */
 .theme-remake .hint::before {
+  left: 24px; right: 24px; border-radius: 3px;
   background:
-    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.16) 0 1px, rgba(0, 0, 0, 0) 1px 3px),
-    linear-gradient(180deg, #0c0c0c 0%, #5c5c5b 14%, #e6e6e3 30%, #ffffff 36%, #8b8b89 52%, #2a2a29 72%, #4d4d4b 86%, #0b0b0b 100%);
-  box-shadow: 0 3px 5px rgba(0, 0, 0, 0.9);
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.35) 0 1px, rgba(255, 255, 255, 0.07) 1px 2px, rgba(0, 0, 0, 0) 2px 3px) left bottom / 100% 58% no-repeat,
+    linear-gradient(180deg, #050505 0%, #3d3d3c 7%, #d6d6d3 16%, #ffffff 24%, #f4f4f1 33%, #a3a3a0 39%, #2e2e2d 47%, #1b1b1a 70%, #3f3f3d 86%, #0a0a0a 100%);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.9);
 }
 .theme-remake .hint::after {
   background:
-    linear-gradient(180deg, rgba(255, 230, 210, 0.75), rgba(150, 90, 70, 0) 45%, rgba(40, 20, 14, 0.65)) left / 18px 100% no-repeat,
-    linear-gradient(180deg, rgba(255, 230, 210, 0.75), rgba(150, 90, 70, 0) 45%, rgba(40, 20, 14, 0.65)) right / 18px 100% no-repeat,
-    linear-gradient(90deg, #c98c74 0 18px, rgba(0, 0, 0, 0) 18px calc(100% - 18px), #c98c74 calc(100% - 18px));
+    linear-gradient(90deg, rgba(0, 0, 0, 0.6) 0 1px, rgba(0, 0, 0, 0) 1px calc(100% - 1px), rgba(0, 0, 0, 0.6) calc(100% - 1px)) left / 18px 100% no-repeat,
+    linear-gradient(90deg, rgba(0, 0, 0, 0.6) 0 1px, rgba(0, 0, 0, 0) 1px calc(100% - 1px), rgba(0, 0, 0, 0.6) calc(100% - 1px)) right / 18px 100% no-repeat,
+    linear-gradient(180deg, #2c1611, #8a5546 10%, #f2c6b0 22%, #fff0e6 30%, #d79a83 40%, #8a5444 60%, #5a3328 80%, #24120d) left / 18px 100% no-repeat,
+    linear-gradient(180deg, #2c1611, #8a5546 10%, #f2c6b0 22%, #fff0e6 30%, #d79a83 40%, #8a5444 60%, #5a3328 80%, #24120d) right / 18px 100% no-repeat;
 }
 .theme-remake kbd { border-color: #55534e; color: #ece8db; }
 .theme-remake .field { font-size: 15px; letter-spacing: 0.02em; text-transform: none; color: var(--silver); }
