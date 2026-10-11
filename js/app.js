@@ -230,14 +230,15 @@
   const color = (p, a = 1) => `hsla(${hueAt(p).toFixed(1)}, 96%, ${(58 - 6 * p).toFixed(1)}%, ${a})`;
   // Version 2 : le vert du jeu est plus éteint, tirant sur l'olive ; il se sature en virant à l'orange puis au rouge
   const smooth = (a, b, x) => { const u = Math.max(0, Math.min(1, (x - a) / (b - a))); return u * u * (3 - 2 * u); };
+  // En Danger, le rouge du jeu est un cramoisi sombre (relevé : environ rgb(120, 22, 24) au cœur du trait)
   function traceInk(p, a = 1) {
-    const h = Math.min(100, hueAt(p)), s = smooth(0.3, 0.6, p);
-    return `hsla(${h.toFixed(1)}, ${(27 + 35 * s).toFixed(1)}%, ${(38 + 4 * s).toFixed(1)}%, ${a})`;
+    const h = Math.min(100, hueAt(p)), s = smooth(0.3, 0.6, p), dz = smooth(0.65, 0.95, p);
+    return `hsla(${(h - 2 * dz).toFixed(1)}, ${(27 + 35 * s + 10 * dz).toFixed(1)}%, ${(38 + 4 * s - 18 * dz).toFixed(1)}%, ${a})`;
   }
   // Encre gravée de la plaque d'état
   function plateInk(p) {
-    const h = Math.min(107, hueAt(p)), s = smooth(0.3, 0.6, p);
-    return `hsl(${h.toFixed(1)}, ${(32 + 28 * s).toFixed(1)}%, ${(22 + 4 * s).toFixed(1)}%)`;
+    const h = Math.min(107, hueAt(p)), s = smooth(0.3, 0.6, p), dz = smooth(0.65, 0.95, p);
+    return `hsl(${(h - 2 * dz).toFixed(1)}, ${(32 + 28 * s + 10 * dz).toFixed(1)}%, ${(22 + 4 * s + 2 * dz).toFixed(1)}%)`;
   }
   const wordFor = (p) => p < 0.42 ? "Ok" : p < 0.78 ? "Attention" : "Danger";
 
@@ -531,25 +532,43 @@
       [0.044, -1, "s"], [0.06, -0.08, "b"], [0.078, -0.02, "b"], [0.094, 0.016, "b"], [0.112, 0.004, "b"],
       [0.15, 0.012, "t"], [0.185, 0.04, "t"], [0.21, 0.08, "t"], [0.228, 0.1, "t"], [0.244, 0.082, "t"],
       [0.268, 0.026, "t"], [0.29, 0, "b"]];
-    // Extrasystole, en Danger : complexe large et tordu
-    const PVC = [[-0.09, 0, "b"], [-0.045, -0.06, "r"], [0, -0.27, "r"], [0.055, 0.37, "r"], [0.1, 0.03, "r"],
-      [0.16, -0.13, "t"], [0.24, -0.06, "t"], [0.31, 0, "b"]];
+    // Battement en Danger, relevé sur le jeu (deuxième enregistrement) : pic R bas, creux S profond,
+    // puis le tracé oscille en s'amortissant ; plus loin un petit creux suivi d'une bosse, puis un long plat
+    const DANGER = [[-0.07, 0, "b"], [-0.047, 0.02, "r"], [-0.035, 0.04, "r"], [-0.024, 0.08, "r"], [-0.012, 0.15, "r"],
+      [0, 0.22, "r"], [0.012, 0.2, "r"], [0.024, 0.07, "r"], [0.035, -0.14, "s"], [0.047, -0.19, "s"], [0.059, -0.17, "s"],
+      [0.071, -0.07, "s"], [0.083, -0.03, "o"], [0.1, 0.02, "o"], [0.13, 0.06, "o"], [0.16, 0.035, "o"], [0.2, -0.026, "o"],
+      [0.226, -0.03, "o"], [0.26, 0.03, "o"], [0.295, 0.055, "o"], [0.33, 0.035, "o"], [0.36, -0.016, "o"], [0.385, -0.022, "o"],
+      [0.42, 0, "b"], [0.59, 0, "b"], [0.615, -0.03, "w"], [0.645, -0.052, "w"], [0.67, -0.04, "w"], [0.69, -0.004, "w"],
+      [0.72, 0.026, "w"], [0.755, 0.032, "w"], [0.79, 0.012, "w"], [0.82, 0, "b"]];
 
+    // Ok : environ 100 bpm. Attention : le cœur s'emballe un peu et devient irrégulier.
+    // Danger : comme dans le jeu, il ralentit d'un coup (un battement toutes les 1,23 s, parfois un plus précoce)
+    // et prend la forme amortie ; la bascule se fait battement par battement entre 0,7 et 0,9.
     function schedule(p) {
-      while (nextBeat <= t + 0.6) {
-        const period = 60 / (100 + 70 * p ** 1.4);
-        beats.push({
-          t0: nextBeat, f: Math.min(1, Math.sqrt(period / 0.55)), pvc: pvcFor(p), heard: false,
-          a: { b: 1, p: 0.6 + 0.6 * Math.random(), r: 0.96 + 0.07 * Math.random(), s: 0.14 + 0.2 * Math.random(), t: 0.85 + 0.35 * Math.random() },
-        });
-        nextBeat += period * (1 + (Math.random() * 2 - 1) * (0.11 + irregularFor(p)));
+      const dz = smooth(0.7, 0.9, p);
+      while (nextBeat <= t + 1) {
+        if (Math.random() < dz) {
+          const early = Math.random() < 0.2, k = early ? 0.8 : 1;
+          beats.push({
+            t0: nextBeat, f: 1, tpl: DANGER, heard: false,
+            a: { b: 1, r: k * (0.92 + 0.16 * Math.random()), s: k * (0.75 + 0.35 * Math.random()), o: 0.7 + 0.6 * Math.random(), w: 0.7 + 0.6 * Math.random() },
+          });
+          nextBeat += 1.23 * (early ? 0.66 : 1) * (1 + (Math.random() * 2 - 1) * 0.03);
+        } else {
+          const period = 60 / (100 + 30 * p ** 1.4);
+          beats.push({
+            t0: nextBeat, f: Math.min(1, Math.sqrt(period / 0.55)), tpl: BEAT, heard: false,
+            a: { b: 1, p: 0.6 + 0.6 * Math.random(), r: 0.96 + 0.07 * Math.random(), s: 0.14 + 0.2 * Math.random(), t: 0.85 + 0.35 * Math.random() },
+          });
+          nextBeat += period * (1 + (Math.random() * 2 - 1) * (0.11 + irregularFor(p)));
+        }
       }
       while (beats.length && beats[0].t0 + 0.4 < t - 0.4) beats.shift();
     }
     // Le papier part vers la droite : pour que la bande se lise comme dans le jeu (onde P, pic R, creux S,
     // onde T de gauche à droite), le stylet trace chaque battement en commençant par la fin.
     function beatAt(b, tt) {
-      const tpl = b.pvc ? PVC : BEAT, u = (b.t0 - tt) / b.f;
+      const tpl = b.tpl, u = (b.t0 - tt) / b.f;
       if (u <= tpl[0][0] || u >= tpl[tpl.length - 1][0]) return 0;
       let i = 1;
       while (tpl[i][0] < u) i++;
@@ -557,14 +576,13 @@
       const va = ya * b.a[ka], vb = yb * b.a[kb];
       return va + (vb - va) * ((u - ta) / (tb - ta));
     }
-    // Hauteur du signal en g au-dessus de la ligne de base : battements, petit tremblé du trait, dérive en Danger
-    function signal(tt, p) {
+    // Hauteur du signal en g au-dessus de la ligne de base : battements et petit tremblé du trait
+    // (dans le jeu la ligne reste bien plate entre les battements, même en Danger)
+    function signal(tt) {
       let v = 0;
       for (const b of beats) v += beatAt(b, tt);
       const q = tt / 0.035, i = Math.floor(q), f = q - i;
       v += 0.007 * ((rnd(i + seed) + (rnd(i + 1 + seed) - rnd(i + seed)) * f) * 2 - 1);
-      const wob = Math.max(0, p - 0.65) * 0.07;
-      if (wob) v += wob * (Math.sin(tt * 1.7 + seed) + 0.5 * Math.sin(tt * 4.3 + seed * 2));
       return v;
     }
 
@@ -909,10 +927,12 @@
       const a = s * Math.min(l, 1 - l), f = (n) => { const q = (n + h / 30) % 12; return 255 * (l - a * Math.max(-1, Math.min(q - 3, 9 - q, 1))); };
       return [f(0), f(8), f(4)];
     }
-    // Teintes sombre et claire du liquide : une encre épaisse, un peu plus sombre que le trait
+    // Teintes sombre et claire du liquide : une encre épaisse, un peu plus sombre que le trait.
+    // En Danger, le jeu montre un rouge sang très saturé et sombre (de rgb(18, 0, 1) à rgb(120, 5, 12))
     function vialInk(p) {
-      const h = Math.min(100, hueAt(p)), s = smooth(0.3, 0.6, p);
-      return [rgb(h + 3, 0.3 + 0.2 * s, 0.085), rgb(h, 0.42 + 0.16 * s, 0.4 - 0.04 * s)];
+      const h = Math.min(100, hueAt(p)), s = smooth(0.3, 0.6, p), dz = smooth(0.65, 0.95, p);
+      return [rgb(h + 3 - 3 * dz, 0.3 + 0.2 * s + 0.45 * dz, 0.085 - 0.05 * dz),
+        rgb(h - 2 * dz, 0.42 + 0.16 * s + 0.32 * dz, 0.4 - 0.04 * s - 0.11 * dz)];
     }
     function vialFrame(time, p) {
       const d = vimg.data, [lo, hi] = vialInk(p);
@@ -1010,7 +1030,7 @@
       for (let i = 1; i <= n; i++) {
         const tt = t + (dt * i) / n;
         scroll += (SPEED * dt) / n;
-        const dy = Math.max(-0.9 * ARM, Math.min(0.9 * ARM, -signal(tt, p)));
+        const dy = Math.max(-0.9 * ARM, Math.min(0.9 * ARM, -signal(tt)));
         pts.push({ d: scroll, x: PIV.x + ARM - 0.3 * (ARM - Math.sqrt(ARM * ARM - dy * dy)), y: PIV.y + dy });
       }
       for (const b of beats) {
