@@ -416,7 +416,7 @@
     const GRID_T = 0.547, GRID_B = 1.547, BASE = 1.057;
     const PIV = { x: 0.378, y: BASE }, ARM = 0.87;          // pivot du stylet et longueur du bras
     const DIAL = { x: 0.534, y: BASE, r: 0.367 };
-    const VIAL = { x0: 0.06, y0: 0.465, x1: 0.31, y1: 1.755 };
+    const VIAL = { x0: 0.075, y0: 0.465, x1: 0.295, y1: 1.755 };
     const PLATE = { x0: 1.06, y0: 1.777, x1: 2.554, y1: 1.98 };
     const SPEED = 1.14;                                    // le papier avance de 1,14 g par seconde
     const COL = 0.3, COLS = 8, ROWS = 7, TILE = COL * COLS;
@@ -665,7 +665,7 @@
 
       // Le cadran perforé, à moitié caché par le bloc du mécanisme
       drawDial(c);
-      fill(c, VIAL.x0 - 0.02, VIAL.y0 - 0.03, 0.34, VIAL.y1 + 0.03, 0, "#040604");
+      fill(c, 0.04, VIAL.y0 - 0.03, 0.34, VIAL.y1 + 0.03, 0, "#040604");
       c.beginPath();
       c.moveTo(X(0.33), Y(0.45)); c.lineTo(X(0.72), Y(0.45)); c.lineTo(X(0.72), Y(0.69));
       c.quadraticCurveTo(X(0.72), Y(0.74), X(0.67), Y(0.74)); c.lineTo(X(0.52), Y(0.74));
@@ -721,7 +721,7 @@
         const u = (i + 0.5) / VW, v = (j + 0.5) / VH;
         // Veines verticales qui descendent à vitesse moyenne
         let n = 0.46 * noise(i * 0.42, j * 0.05 - time * 2.6, 1e4, 1) + 0.26 * noise(i * 0.9 + 7, j * 0.11 - time * 4.2, 1e4, 2);
-        n += 0.15 * Math.exp(-(((u - 0.47) / 0.12) ** 2));
+        n += 0.15 * Math.exp(-(((u - 0.47) / 0.105) ** 2));
         // Filet clair qui tombe du haut, et la goutte avec sa traînée
         const dx = u - cx, dy = v - cy;
         // La larme qui reste accrochée en haut et s'étire vers le bas
@@ -730,7 +730,7 @@
         n += 0.28 * glow * Math.exp(-((dx / rx) ** 2) - ((dy / ry) ** 2));
         if (dy < 0) n += 0.12 * glow * Math.exp(-((dx / (rx * 0.45)) ** 2)) * Math.exp(dy / 0.12);
         // Colonne claire étroite au centre, bords du tube sombres
-        const b = Math.max(0, Math.min(1, n * 1.05)) * (0.25 + 0.75 * Math.exp(-(((u - 0.48) / 0.33) ** 2)));
+        const b = Math.max(0, Math.min(1, n * 1.05)) * (0.24 + 0.76 * Math.exp(-(((u - 0.48) / 0.3) ** 2)));
         const q = (j * VW + i) * 4;
         d[q] = 36 + 112 * b ** 1.2; d[q + 1] = 52 + 175 * b; d[q + 2] = 30 + 78 * b ** 1.4; d[q + 3] = 255;
       }
