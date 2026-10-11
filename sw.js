@@ -1,9 +1,10 @@
 // Service worker : garde l'appli en cache pour qu'elle marche hors ligne.
 // Pense à changer VERSION à chaque mise à jour, sinon les téléphones gardent l'ancienne version.
-const VERSION = "condition-v2";
+const VERSION = "condition-v3";
 const FILES = [
   "./", "./index.html", "./manifest.webmanifest", "./css/style.css", "./js/app.js",
   "./fonts/librecaslon-700-latin.woff2", "./fonts/sharetechmono-latin.woff2",
+  "./fonts/sortsmillgoudy-latin.woff2", "./fonts/gelasio-700-latin.woff2",
   "./icons/icon-192.png", "./icons/icon-512.png", "./icons/icon-maskable-512.png",
   "./icons/apple-touch-icon.png", "./icons/favicon-32.png"
 ];

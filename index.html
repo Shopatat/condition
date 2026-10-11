@@ -21,22 +21,35 @@
 <body>
 
 <main>
+  <div class="phase-plate" data-phase aria-hidden="true">Concentration</div>
   <div class="monitor">
     <div class="screen" id="screen">
       <canvas id="grid"></canvas>
       <canvas id="trace"></canvas>
       <canvas id="head"></canvas>
-      <div class="tag center" id="phaseTag">Concentration</div>
+      <div class="tag center" id="phaseTag" data-phase>Concentration</div>
     </div>
     <div class="status" id="status" aria-live="polite">Ok</div>
   </div>
 
   <div class="bar">
     <div class="controls">
-      <button class="primary" id="toggle" type="button">Démarrer</button>
-      <button id="skip" type="button" disabled>Prendre ma pause</button>
-      <button id="reset" type="button">Réinitialiser</button>
-      <button id="gear" type="button" aria-pressed="false" aria-controls="settings">Réglages</button>
+      <button class="primary" id="toggle" type="button" data-ico="play">
+        <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path class="i-play" d="M8 5l11 7-11 7z"/><path class="i-pause" d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg></span>
+        <span class="lbl">Démarrer</span>
+      </button>
+      <button id="skip" type="button" disabled>
+        <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 3h12v2h-1.2c-.3 3.2-2.2 5.3-3.9 7 1.7 1.7 3.6 3.8 3.9 7H18v2H6v-2h1.2c.3-3.2 2.2-5.3 3.9-7C9.4 10.3 7.5 8.2 7.2 5H6zm3.2 2c.3 2.4 1.7 4 2.8 5.2 1.1-1.2 2.5-2.8 2.8-5.2zM12 13.8c-1.1 1.2-2.5 2.8-2.8 5.2h5.6c-.3-2.4-1.7-4-2.8-5.2z"/></svg></span>
+        <span class="lbl">Prendre ma pause</span>
+      </button>
+      <button id="reset" type="button">
+        <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 4a8 8 0 1 1-7.4 5h2.2A6 6 0 1 0 12 6v3L7 5l5-4z"/></svg></span>
+        <span class="lbl">Réinitialiser</span>
+      </button>
+      <button id="gear" type="button" aria-pressed="false" aria-controls="settings">
+        <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 3h11l3 3v15H5zm2 2v14h10V7h-2.2V5zm2 4h6v1.6H9zm0 3.2h6v1.6H9zm0 3.2h4v1.6H9z"/></svg></span>
+        <span class="lbl">Réglages</span>
+      </button>
     </div>
     <div class="sessions">Sessions <span class="dots" id="dots"></span></div>
   </div>

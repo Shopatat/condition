@@ -161,25 +161,28 @@
     const status = $("#status");
     if (status.textContent !== word) status.textContent = word;
     document.documentElement.style.setProperty("--state", color(p));
-    document.documentElement.style.setProperty("--ink-state", ink(p));
+    document.documentElement.style.setProperty("--ink-state", plateInk(p));
   }
   setInterval(tick, 250);
 
   /* ---------- Interface ---------- */
   function updateUI() {
     saveState();
-    $("#toggle").textContent =
+    const tg = $("#toggle");
+    tg.querySelector(".lbl").textContent =
       st.status === "running" ? "Suspendre" :
       st.status === "paused" ? "Reprendre" :
       st.status === "overtime" ? "Prendre ma pause" : "Démarrer";
+    tg.dataset.ico = st.status === "running" ? "pause" : "play";
     const sk = $("#skip");
     sk.hidden = st.status === "overtime";
-    sk.textContent = st.phase === "work" ? "Prendre ma pause" : "Terminer la pause";
+    sk.querySelector(".lbl").textContent = st.phase === "work" ? "Prendre ma pause" : "Terminer la pause";
     sk.disabled = st.phase === "work" && st.status === "idle";
-    const tag = $("#phaseTag");
     const label = st.phase === "work" ? "Concentration" : st.breakLong ? "Longue pause" : "Pause";
-    tag.textContent = st.status === "paused" ? "Suspendu" : label;
-    tag.classList.toggle("blink", st.status === "paused");
+    for (const tag of document.querySelectorAll("[data-phase]")) {
+      tag.textContent = st.status === "paused" ? "Suspendu" : label;
+      tag.classList.toggle("blink", st.status === "paused");
+    }
     document.documentElement.classList.toggle("overtime", st.status === "overtime");
     document.documentElement.classList.toggle("focus", st.status === "running" || st.status === "overtime");
     renderDots();
@@ -225,10 +228,16 @@
     return 0;
   }
   const color = (p, a = 1) => `hsla(${hueAt(p).toFixed(1)}, 96%, ${(58 - 6 * p).toFixed(1)}%, ${a})`;
-  // Encre sombre pour le papier clair de la version 2 : l'orange est un peu éclairci pour rester lisible
-  function ink(p, a = 1) {
-    const h = hueAt(p), l = 30 + 9 * Math.max(0, 1 - Math.abs(h - 42) / 25);
-    return `hsla(${h.toFixed(1)}, 72%, ${l.toFixed(1)}%, ${a})`;
+  // Version 2 : le vert du jeu est plus éteint, tirant sur l'olive ; il se sature en virant à l'orange puis au rouge
+  const smooth = (a, b, x) => { const u = Math.max(0, Math.min(1, (x - a) / (b - a))); return u * u * (3 - 2 * u); };
+  function traceInk(p, a = 1) {
+    const h = Math.min(100, hueAt(p)), s = smooth(0.3, 0.6, p);
+    return `hsla(${h.toFixed(1)}, ${(27 + 35 * s).toFixed(1)}%, ${(38 + 4 * s).toFixed(1)}%, ${a})`;
+  }
+  // Encre gravée de la plaque d'état
+  function plateInk(p) {
+    const h = Math.min(107, hueAt(p)), s = smooth(0.3, 0.6, p);
+    return `hsl(${h.toFixed(1)}, ${(32 + 28 * s).toFixed(1)}%, ${(22 + 4 * s).toFixed(1)}%)`;
   }
   const wordFor = (p) => p < 0.42 ? "Ok" : p < 0.78 ? "Attention" : "Danger";
 
@@ -398,187 +407,434 @@
     return { resize, enter, frame };
   })();
 
-  /* ----- Version 2 : l'enregistreur de REmake, un stylet fixe trace sur du papier qui défile ----- */
+  /* ----- Version 2 : l'enregistreur de l'écran de statut de Resident Evil REmake -----
+     Tout l'appareil est dessiné d'après l'enregistrement du jeu, image par image.
+     Les cotes sont en « g », la hauteur de la grille du papier : tout le reste s'y rapporte. */
   const recorder = (() => {
-    const PAPER_S = 2.4;   // temps mis par un point du papier pour traverser l'écran
-    const paperC = document.createElement("canvas"), pctx = paperC.getContext("2d");
-    let P = 0, top = 0, bot = 0, y0 = 0, amp = 0, pivX = 0, penX = 0, dialR = 0;
-    let t = 0, scroll = 0, nextBeat = 0.3, beats = [], pts = [], seed = Math.random() * 10;
-    // Hasard reproductible, pour que les taches du papier ne bougent pas d'un redimensionnement à l'autre
+    const DEV_W = 3.38, DEV_H = 2.07;
+    const PAPER = { x0: 0.75, y0: 0.186, x1: 3.007, y1: 1.706 };
+    const GRID_T = 0.547, GRID_B = 1.547, BASE = 1.057;
+    const PIV = { x: 0.378, y: BASE }, ARM = 0.87;          // pivot du stylet et longueur du bras
+    const DIAL = { x: 0.534, y: BASE, r: 0.367 };
+    const VIAL = { x0: 0.06, y0: 0.465, x1: 0.31, y1: 1.755 };
+    const PLATE = { x0: 1.06, y0: 1.777, x1: 2.554, y1: 1.98 };
+    const SPEED = 1.14;                                    // le papier avance de 1,14 g par seconde
+    const COL = 0.3, COLS = 8, ROWS = 7, TILE = COL * COLS;
+
+    let k = 1, ox = 0, oy = 0, tileW = 0, tileH = 0;
+    let t = 0, scroll = 0, nextBeat = 0.25, beats = [], pts = [], seed = Math.random() * 100, vialClock = 1;
+    const X = (u) => ox + u * k, Y = (v) => oy + v * k;
+    // Hasard reproductible : les taches et l'usure ne bougent pas d'un redimensionnement à l'autre
     const rnd = (i) => { const s = Math.sin(i * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+    function noise(x, y, per, s) {
+      const i = Math.floor(x), j = Math.floor(y), fx = x - i, fy = y - j;
+      const u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
+      const m = (a) => ((a % per) + per) % per;
+      const h = (a, b) => rnd(m(a) * 57.31 + b * 131.7 + s * 17.13);
+      const a = h(i, j), b = h(i + 1, j), c = h(i, j + 1), d = h(i + 1, j + 1);
+      return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+    }
 
-    // Une bande de papier qui se répète sans raccord visible : fond gris, taches, grands carreaux, graduations
-    function paintPaper() {
-      const rowH = (bot - top) / 4;
-      const cols = Math.max(4, Math.ceil(W / rowH));
-      P = Math.round(rowH * cols * dpr) / dpr;
-      const colW = P / cols;
-      paperC.width = Math.round(P * dpr); paperC.height = Math.round(H * dpr);
-      pctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      pctx.fillStyle = "#c8c5b7";
-      pctx.fillRect(0, 0, P, H);
-      for (let i = 0; i < 28; i++) {
-        const sx = rnd(i) * P, sy = rnd(i + 50) * H, r = H * (0.08 + 0.3 * rnd(i + 100));
-        const a = 0.04 + 0.12 * rnd(i + 150);
-        for (const ox of [-P, 0, P]) {
-          const grad = pctx.createRadialGradient(sx + ox, sy, 0, sx + ox, sy, r);
-          grad.addColorStop(0, `rgba(105, 85, 55, ${a})`);
-          grad.addColorStop(1, "rgba(105, 85, 55, 0)");
-          pctx.fillStyle = grad;
-          pctx.fillRect(sx + ox - r, sy - r, r * 2, r * 2);
-        }
+    /* --- Petits outils de dessin, en unités g --- */
+    function box(c, x0, y0, x1, y1, r = 0) {
+      c.beginPath();
+      if (r && c.roundRect) c.roundRect(X(x0), Y(y0), (x1 - x0) * k, (y1 - y0) * k, r * k);
+      else c.rect(X(x0), Y(y0), (x1 - x0) * k, (y1 - y0) * k);
+    }
+    function grad(c, x0, y0, x1, y1, stops) {
+      const gr = c.createLinearGradient(X(x0), Y(y0), X(x1), Y(y1));
+      for (const [o, col] of stops) gr.addColorStop(o, col);
+      return gr;
+    }
+    function fill(c, x0, y0, x1, y1, r, style) { box(c, x0, y0, x1, y1, r); c.fillStyle = style; c.fill(); }
+    const vfill = (c, x0, y0, x1, y1, r, stops) => fill(c, x0, y0, x1, y1, r, grad(c, 0, y0, 0, y1, stops));
+    const hfill = (c, x0, y0, x1, y1, r, stops) => fill(c, x0, y0, x1, y1, r, grad(c, x0, 0, x1, 0, stops));
+    function circle(c, x, y, r, style) { c.beginPath(); c.arc(X(x), Y(y), r * k, 0, Math.PI * 2); c.fillStyle = style; c.fill(); }
+    // Métal usé : rayures fines et taches de crasse, dans la zone donnée
+    function wear(c, x0, y0, x1, y1, s, n, vertical) {
+      c.save();
+      box(c, x0, y0, x1, y1); c.clip();
+      const lw = Math.max(0.5, k * 0.004);
+      for (let i = 0; i < n; i++) {
+        const r1 = rnd(s + i * 1.31), r2 = rnd(s + i * 2.17), light = rnd(s + i * 3.7) > 0.55;
+        c.fillStyle = light ? `rgba(255,248,238,${(0.05 + 0.1 * r2).toFixed(3)})` : `rgba(25,18,12,${(0.05 + 0.12 * r2).toFixed(3)})`;
+        if (vertical) c.fillRect(X(x0 + (x1 - x0) * r1), Y(y0), lw, (y1 - y0) * k);
+        else c.fillRect(X(x0), Y(y0 + (y1 - y0) * r1), (x1 - x0) * k, lw);
       }
-      // Les bords du papier s'enroulent sur les rouleaux, un peu plus sombres
-      const roll = pctx.createLinearGradient(0, 0, 0, H);
-      roll.addColorStop(0, "rgba(20, 18, 12, 0.45)");
-      roll.addColorStop(0.09, "rgba(20, 18, 12, 0)");
-      roll.addColorStop(0.91, "rgba(20, 18, 12, 0)");
-      roll.addColorStop(1, "rgba(20, 18, 12, 0.45)");
-      pctx.fillStyle = roll;
-      pctx.fillRect(0, 0, P, H);
+      for (let i = 0; i < Math.max(2, n / 6); i++) {
+        const cx = x0 + (x1 - x0) * rnd(s + 50 + i), cy = y0 + (y1 - y0) * rnd(s + 80 + i), r = 0.04 + 0.12 * rnd(s + 110 + i);
+        const gr = c.createRadialGradient(X(cx), Y(cy), 0, X(cx), Y(cy), r * k);
+        gr.addColorStop(0, "rgba(45,30,20,0.2)");
+        gr.addColorStop(1, "rgba(45,30,20,0)");
+        c.fillStyle = gr;
+        c.fillRect(X(cx - r), Y(cy - r), 2 * r * k, 2 * r * k);
+      }
+      c.restore();
+    }
 
-      pctx.fillStyle = "rgba(55, 52, 42, 0.12)";
-      for (let i = 0; i < cols * 5; i++) pctx.fillRect(i * colW / 5, top, 1, bot - top);
-      for (let j = 0; j < 20; j++) pctx.fillRect(0, top + j * rowH / 5, P, 1);
-      pctx.fillStyle = "rgba(40, 38, 30, 0.6)";
-      const lw = Math.max(1, H / 260);
-      for (let i = 0; i < cols; i++) pctx.fillRect(i * colW, top, lw, bot - top);
-      for (let j = 0; j <= 4; j++) pctx.fillRect(0, top + j * rowH - lw / 2, P, lw);
-      const tick = H * 0.045;
-      for (let i = 0; i < cols * 2; i++) {
-        const tx = i * colW / 2, len = i % 2 ? tick * 0.6 : tick;
-        pctx.fillRect(tx, top, lw * 1.6, len);
-        pctx.fillRect(tx, bot - len, lw * 1.6, len);
+    /* --- Le papier : une bande qui se répète sans raccord, taches, grille et graduations --- */
+    const tileC = document.createElement("canvas"), tl = tileC.getContext("2d");
+    const mottle = (() => {
+      const w = 120, h = 76, c = document.createElement("canvas");
+      c.width = w; c.height = h;
+      const x = c.getContext("2d"), img = x.createImageData(w, h);
+      for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+        let n = 0, a = 0.55, f = 1;
+        for (let o = 0; o < 4; o++) { n += a * noise((i / w) * 5 * f, (j / h) * 3.2 * f, 5 * f, o + 3); a *= 0.5; f *= 2; }
+        n = Math.max(0, Math.min(1, 0.5 + (n - 0.52) * 2));
+        const q = (j * w + i) * 4;
+        if (n > 0.5) { img.data[q] = 88; img.data[q + 1] = 60; img.data[q + 2] = 48; img.data[q + 3] = (n - 0.5) * 2 * 95; }
+        else { img.data[q] = 205; img.data[q + 1] = 199; img.data[q + 2] = 186; img.data[q + 3] = (0.5 - n) * 2 * 80; }
+      }
+      x.putImageData(img, 0, 0);
+      return c;
+    })();
+    function paintTile() {
+      const tw = Math.max(1, Math.round(TILE * k * dpr)), th = Math.max(1, Math.round((PAPER.y1 - PAPER.y0) * k * dpr));
+      tileC.width = tw; tileC.height = th;
+      tileW = tw / dpr; tileH = th / dpr;
+      const c = tl, s = tw / TILE;
+      c.fillStyle = "#9b9486";
+      c.fillRect(0, 0, tw, th);
+      c.imageSmoothingEnabled = true;
+      c.imageSmoothingQuality = "high";
+      c.drawImage(mottle, 0, 0, tw, th);
+      const dot = Math.max(1, s * 0.006);
+      for (let i = 0; i < 2600; i++) {
+        c.fillStyle = rnd(i + 0.7) > 0.5 ? "rgba(255,250,240,0.08)" : "rgba(40,28,18,0.09)";
+        c.fillRect(rnd(i) * tw, rnd(i + 0.3) * th, dot, dot);
+      }
+      const gy0 = (GRID_T - PAPER.y0) * s, gy1 = (GRID_B - PAPER.y0) * s, gh = gy1 - gy0;
+      const bar = (x, y, w, h, col) => { c.fillStyle = col; c.fillRect(x, y, w, h); };
+      // Lignes fines : un grand carreau fait deux fois plus large que haut
+      const fw = Math.max(1, s * 0.008);
+      for (let i = 0; i <= COLS; i++) bar(i * COL * s - fw / 2, gy0, fw, gh, "rgba(72,58,42,0.16)");
+      for (let j = 1; j < ROWS; j++) bar(0, gy0 + (gh * j) / ROWS - fw / 2, tw, fw, "rgba(72,58,42,0.13)");
+      // Bordures haute et basse de la grille
+      const bw = Math.max(1.5, s * 0.024);
+      for (const y of [gy0, gy1]) {
+        bar(0, y - bw, tw, bw * 2, "rgba(80,64,46,0.16)");
+        bar(0, y - bw / 2, tw, bw, "rgba(86,74,55,0.92)");
+      }
+      // Graduations : longues sous chaque ligne, courtes à mi-chemin
+      const tk = Math.max(1.5, s * 0.02), col = "rgba(76,62,44,0.95)";
+      for (let i = 0; i <= COLS; i++) {
+        const xl = i * COL * s - tk / 2, xs = (i + 0.5) * COL * s - tk / 2;
+        bar(xl, gy0, tk, s * 0.145, col); bar(xs, gy0, tk, s * 0.062, col);
+        bar(xl, gy1 - s * 0.147, tk, s * 0.147, col); bar(xs, gy1 - s * 0.08, tk, s * 0.08, col);
       }
     }
 
-    function resize(oldW, oldH) {
-      const rx = oldW ? W / oldW : 1, ry = oldH ? H / oldH : 1;
-      top = H * 0.15; bot = H * 0.85;
-      y0 = top + (bot - top) * 0.6; amp = (bot - top) * 0.56;
-      dialR = H * 0.16;
-      pivX = Math.max(14, W * 0.05);
-      penX = pivX + Math.max(dialR * 1.6, W * 0.15);
-      for (const q of pts) { q.d = scroll - (scroll - q.d) * rx; q.y *= ry; }
-      paintPaper();
-    }
-    function enter() { t = 0; scroll = 0; nextBeat = 0.3; beats = []; pts = []; }
+    /* --- Le cœur : un battement relevé sur le jeu (temps en s autour du pic R, hauteur en g) --- */
+    const BEAT = [[-0.21, 0, "b"], [-0.18, 0.028, "p"], [-0.15, 0.04, "p"], [-0.12, 0.022, "p"], [-0.095, 0, "b"],
+      [-0.058, 0.005, "b"], [-0.042, 0.04, "r"], [-0.014, 0.32, "r"], [0, 0.43, "r"], [0.011, 0.31, "r"],
+      [0.044, -1, "s"], [0.06, -0.08, "b"], [0.078, -0.02, "b"], [0.094, 0.016, "b"], [0.112, 0.004, "b"],
+      [0.15, 0.012, "t"], [0.185, 0.04, "t"], [0.21, 0.08, "t"], [0.228, 0.1, "t"], [0.244, 0.082, "t"],
+      [0.268, 0.026, "t"], [0.29, 0, "b"]];
+    // Extrasystole, en Danger : complexe large et tordu
+    const PVC = [[-0.09, 0, "b"], [-0.045, -0.06, "r"], [0, -0.27, "r"], [0.055, 0.37, "r"], [0.1, 0.03, "r"],
+      [0.16, -0.13, "t"], [0.24, -0.06, "t"], [0.31, 0, "b"]];
 
     function schedule(p) {
-      while (nextBeat <= t + 0.5) {
-        const period = 60 / bpmFor(p), pvc = pvcFor(p);
-        const dur = Math.min(period * 0.75, 0.34) * (pvc ? 1.15 : 1);
-        beats.push({ start: nextBeat, dur, a: 1 + (Math.random() * 2 - 1) * jitterFor(p), pvc, heard: false });
-        nextBeat += period * (1 + (Math.random() * 2 - 1) * irregularFor(p));
+      while (nextBeat <= t + 0.6) {
+        const period = 60 / (100 + 70 * p ** 1.4);
+        beats.push({
+          t0: nextBeat, f: Math.min(1, Math.sqrt(period / 0.55)), pvc: pvcFor(p), heard: false,
+          a: { b: 1, p: 0.6 + 0.6 * Math.random(), r: 0.96 + 0.07 * Math.random(), s: 0.14 + 0.2 * Math.random(), t: 0.85 + 0.35 * Math.random() },
+        });
+        nextBeat += period * (1 + (Math.random() * 2 - 1) * (0.11 + irregularFor(p)));
       }
-      while (beats.length && beats[0].start + beats[0].dur < t - 1) beats.shift();
+      while (beats.length && beats[0].t0 + 0.4 < t - 0.4) beats.shift();
     }
-    function value(tt, p) {
-      let y = y0;
-      for (const b of beats) {
-        const u = (tt - b.start) / b.dur;
-        if (u >= 0 && u <= 1) { y -= amp * b.a * shape(u, b.pvc); break; }
-      }
-      const wobble = Math.max(0, p - 0.65) * H * 0.02;
-      if (wobble) y += wobble * (Math.sin(tt * 17 + seed) + 0.5 * Math.sin(tt * 47 + seed * 2));
-      return y;
+    // Le papier part vers la droite : pour que la bande se lise comme dans le jeu (onde P, pic R, creux S,
+    // onde T de gauche à droite), le stylet trace chaque battement en commençant par la fin.
+    function beatAt(b, tt) {
+      const tpl = b.pvc ? PVC : BEAT, u = (b.t0 - tt) / b.f;
+      if (u <= tpl[0][0] || u >= tpl[tpl.length - 1][0]) return 0;
+      let i = 1;
+      while (tpl[i][0] < u) i++;
+      const [ta, ya, ka] = tpl[i - 1], [tb, yb, kb] = tpl[i];
+      const va = ya * b.a[ka], vb = yb * b.a[kb];
+      return va + (vb - va) * ((u - ta) / (tb - ta));
+    }
+    // Hauteur du signal en g au-dessus de la ligne de base : battements, petit tremblé du trait, dérive en Danger
+    function signal(tt, p) {
+      let v = 0;
+      for (const b of beats) v += beatAt(b, tt);
+      const q = tt / 0.035, i = Math.floor(q), f = q - i;
+      v += 0.007 * ((rnd(i + seed) + (rnd(i + 1 + seed) - rnd(i + seed)) * f) * 2 - 1);
+      const wob = Math.max(0, p - 0.65) * 0.07;
+      if (wob) v += wob * (Math.sin(tt * 1.7 + seed) + 0.5 * Math.sin(tt * 4.3 + seed * 2));
+      return v;
     }
 
-    function drawDial() {
-      const cx = pivX, cy = y0, R = dialR;
-      const disc = hctx.createRadialGradient(cx - R * 0.3, cy - R * 0.3, R * 0.1, cx, cy, R);
-      disc.addColorStop(0, "#4a4943");
-      disc.addColorStop(1, "#141412");
-      hctx.fillStyle = disc;
-      hctx.beginPath(); hctx.arc(cx, cy, R, 0, Math.PI * 2); hctx.fill();
-      hctx.lineWidth = Math.max(1.5, R * 0.06);
-      hctx.strokeStyle = "#77746a";
-      hctx.stroke();
-      // Couronnes de trous, comme le cadran perforé du jeu
-      hctx.fillStyle = "#050505";
-      for (const [ring, n] of [[0.55, 12], [0.8, 18]]) {
-        for (let i = 0; i < n; i++) {
-          const a = (i / n) * Math.PI * 2 + ring;
-          hctx.beginPath();
-          hctx.arc(cx + Math.cos(a) * R * ring, cy + Math.sin(a) * R * ring, R * 0.055, 0, Math.PI * 2);
-          hctx.fill();
-        }
+    /* --- La caisse de l'appareil : dessinée une fois par redimensionnement --- */
+    function drawDial(c) {
+      const cx = X(DIAL.x), cy = Y(DIAL.y), R = DIAL.r * k;
+      const disc = (r) => { c.beginPath(); c.arc(cx, cy, r * R, 0, Math.PI * 2); };
+      c.save();
+      c.shadowColor = "rgba(0,0,0,0.65)";
+      c.shadowBlur = 0.035 * k * dpr; c.shadowOffsetX = 0.012 * k * dpr; c.shadowOffsetY = 0.025 * k * dpr;
+      disc(1);
+      c.fillStyle = grad(c, DIAL.x - DIAL.r, DIAL.y - DIAL.r, DIAL.x + DIAL.r * 0.6, DIAL.y + DIAL.r, [[0, "#f4e8e5"], [0.35, "#bba9a7"], [0.7, "#6f5f5e"], [1, "#3b302f"]]);
+      c.fill();
+      c.restore();
+      disc(0.9);
+      c.fillStyle = grad(c, DIAL.x - DIAL.r, DIAL.y - DIAL.r, DIAL.x + DIAL.r, DIAL.y + DIAL.r, [[0, "#c9b8b6"], [0.5, "#8c7b79"], [1, "#4a3d3c"]]);
+      c.fill();
+      // Couronne de fentes rectangulaires
+      for (let i = 0; i < 28; i++) {
+        const a = (i / 28) * Math.PI * 2, da = 0.07;
+        c.beginPath();
+        c.arc(cx, cy, R * 0.85, a - da, a + da);
+        c.arc(cx, cy, R * 0.65, a + da * 1.3, a - da * 1.3, true);
+        c.closePath();
+        c.fillStyle = "#171313"; c.fill();
+        c.strokeStyle = "rgba(240,225,222,0.35)"; c.lineWidth = Math.max(0.5, k * 0.003); c.stroke();
+      }
+      // Bande sombre percée de petits trous clairs
+      disc(0.6); c.fillStyle = "#3a3131"; c.fill();
+      for (let i = 0; i < 20; i++) {
+        const a = (i / 20) * Math.PI * 2 + 0.08;
+        c.beginPath(); c.arc(cx + Math.cos(a) * R * 0.5, cy + Math.sin(a) * R * 0.5, R * 0.05, 0, Math.PI * 2);
+        c.fillStyle = "#cfc3c1"; c.fill();
+      }
+      disc(0.4);
+      c.fillStyle = grad(c, DIAL.x - DIAL.r * 0.4, DIAL.y - DIAL.r * 0.4, DIAL.x + DIAL.r * 0.4, DIAL.y + DIAL.r * 0.4, [[0, "#7d706f"], [1, "#2e2726"]]);
+      c.fill();
+    }
+
+    function drawHandle(c) {
+      const chrome = [[0, "#4f4b46"], [0.3, "#d8d2c8"], [0.45, "#fffaf1"], [0.7, "#b4ada3"], [1, "#4a4641"]];
+      vfill(c, 3.04, 0.25, 3.27, 0.33, 0.02, [[0, "#f2ede4"], [0.5, "#b5aea4"], [1, "#4d4843"]]);
+      vfill(c, 3.04, 1.92, 3.27, 2.0, 0.02, [[0, "#e8e2d8"], [0.5, "#a9a298"], [1, "#46413c"]]);
+      hfill(c, 3.17, 0.27, 3.27, 1.98, 0.05, chrome);
+      for (const [y0, y1] of [[0.575, 0.71], [1.42, 1.555]]) {
+        vfill(c, 3.05, y0, 3.37, y1, 0.02, [[0, "#5a5b5b"], [0.18, "#3a3b3b"], [1, "#1c1d1d"]]);
+        fill(c, 3.05, y0, 3.37, y0 + 0.012, 0, "rgba(255,255,255,0.18)");
       }
     }
-    function drawPen(tipY, p) {
-      const L = Math.hypot(penX - pivX, tipY - y0), w = Math.max(3, H * 0.024);
-      hctx.save();
-      hctx.translate(pivX, y0);
-      hctx.rotate(Math.atan2(tipY - y0, penX - pivX));
-      hctx.shadowColor = "rgba(0, 0, 0, 0.45)";
-      hctx.shadowOffsetY = Math.max(2, H * 0.012);
-      hctx.shadowBlur = 4;
-      const metal = hctx.createLinearGradient(0, -w, 0, w);
-      metal.addColorStop(0, "#f3f0e6");
-      metal.addColorStop(0.45, "#b3afa3");
-      metal.addColorStop(1, "#4f4c45");
-      hctx.fillStyle = metal;
-      hctx.beginPath();
-      hctx.moveTo(-dialR * 0.4, -w * 0.9);
-      hctx.lineTo(L - w, -w * 0.35);
-      hctx.lineTo(L, 0);
-      hctx.lineTo(L - w, w * 0.35);
-      hctx.lineTo(-dialR * 0.4, w * 0.9);
-      hctx.closePath();
-      hctx.fill();
-      hctx.shadowColor = "transparent";
-      // La pointe, encrée de la couleur du tracé
-      hctx.fillStyle = ink(p);
-      hctx.beginPath(); hctx.arc(L, 0, w * 0.45, 0, Math.PI * 2); hctx.fill();
-      // Moyeu du pivot
-      const hub = hctx.createRadialGradient(-w * 0.4, -w * 0.4, 0, 0, 0, w * 1.6);
-      hub.addColorStop(0, "#efece2");
-      hub.addColorStop(1, "#5d5a52");
-      hctx.fillStyle = hub;
-      hctx.beginPath(); hctx.arc(0, 0, w * 1.6, 0, Math.PI * 2); hctx.fill();
-      hctx.fillStyle = "#1c1b18";
-      hctx.beginPath(); hctx.arc(0, 0, w * 0.45, 0, Math.PI * 2); hctx.fill();
-      hctx.restore();
+
+    function drawChassis() {
+      const c = tctx;
+      c.clearRect(0, 0, W, H);
+      // Ombre portée de tout l'appareil
+      c.save();
+      c.shadowColor = "rgba(0,0,0,0.85)"; c.shadowBlur = 0.1 * k * dpr; c.shadowOffsetY = 0.03 * k * dpr;
+      fill(c, 0.03, 0.12, 3.07, 2.05, 0.03, "#24211f");
+      c.restore();
+      c.clearRect(X(PAPER.x0), Y(PAPER.y0), (PAPER.x1 - PAPER.x0) * k, (PAPER.y1 - PAPER.y0) * k);
+
+      // Bords de la fenêtre du papier : lèvre sombre en haut, montant clair à gauche, montant sombre à droite
+      vfill(c, 0.7, 0.12, 3.07, 0.186, 0, [[0, "#cfcac2"], [0.1, "#8a8680"], [0.25, "#4b4845"], [1, "#2b2826"]]);
+      hfill(c, 0.7, 0.186, 0.75, 1.706, 0, [[0, "#5e5852"], [0.45, "#cbc2b8"], [1, "#8f857b"]]);
+      hfill(c, 3.007, 0.186, 3.07, 1.706, 0, [[0, "#0e0c0b"], [0.6, "#22201e"], [1, "#3a3633"]]);
+
+      // Ce qui recouvre le papier sans défiler : ombre de la lèvre, reflet, bande roussie, bords assombris
+      vfill(c, PAPER.x0, PAPER.y0, PAPER.x1, 0.37, 0, [[0, "rgba(10,8,6,0.85)"], [0.08, "rgba(10,8,6,0.1)"],
+        [0.13, "rgba(250,246,238,0.85)"], [0.2, "rgba(250,246,238,0)"], [0.3, "rgba(96,62,46,0.3)"], [0.75, "rgba(96,62,46,0.18)"], [1, "rgba(96,62,46,0)"]]);
+      hfill(c, PAPER.x0, PAPER.y0, PAPER.x0 + 0.05, PAPER.y1, 0, [[0, "rgba(0,0,0,0.28)"], [1, "rgba(0,0,0,0)"]]);
+      hfill(c, PAPER.x1 - 0.08, PAPER.y0, PAPER.x1, PAPER.y1, 0, [[0, "rgba(0,0,0,0)"], [1, "rgba(0,0,0,0.5)"]]);
+      vfill(c, PAPER.x0, PAPER.y1 - 0.06, PAPER.x1, PAPER.y1, 0, [[0, "rgba(0,0,0,0)"], [1, "rgba(0,0,0,0.4)"]]);
+
+      // Panneau du bas, sombre à gauche et clair à droite, avec la fenêtre de la plaque
+      hfill(c, 0.7, 1.706, 3.07, 2.05, 0, [[0, "#57483f"], [0.25, "#6c5c52"], [0.55, "#a39589"], [0.8, "#c7bab0"], [1, "#9b8f86"]]);
+      wear(c, 0.7, 1.706, 3.07, 2.05, 7, 46, false);
+      vfill(c, 0.7, 1.706, 3.07, 1.74, 0, [[0, "rgba(0,0,0,0.7)"], [1, "rgba(0,0,0,0)"]]);
+      vfill(c, 0.7, 2.0, 3.07, 2.05, 0, [[0, "rgba(0,0,0,0)"], [1, "rgba(0,0,0,0.5)"]]);
+      const e = 0.018;
+      vfill(c, PLATE.x0 - e, PLATE.y0 - e, PLATE.x1 + e, PLATE.y1 + e, 0.006, [[0, "#1c1a18"], [0.5, "#5d564f"], [1, "#ddd5cb"]]);
+      hfill(c, PLATE.x0, PLATE.y0, PLATE.x1, PLATE.y1, 0, [[0, "#8a8f81"], [0.12, "#b8bdaf"], [0.5, "#dce1d4"], [0.88, "#b8bdaf"], [1, "#878b7e"]]);
+      wear(c, PLATE.x0, PLATE.y0, PLATE.x1, PLATE.y1, 21, 70, true);
+      vfill(c, PLATE.x0, PLATE.y0, PLATE.x1, PLATE.y1, 0, [[0, "rgba(0,0,0,0.45)"], [0.18, "rgba(0,0,0,0)"], [0.82, "rgba(0,0,0,0)"], [1, "rgba(0,0,0,0.22)"]]);
+
+      // Colonne de gauche : écrou, support à fente, tube de la fiole, support à encoches
+      hfill(c, 0.14, 0.02, 0.4, 0.2, 0.015, [[0, "#4b4843"], [0.25, "#bdb9b1"], [0.4, "#f4f1ea"], [0.6, "#a8a49c"], [1, "#45423e"]]);
+      fill(c, 0.14, 0.02, 0.4, 0.04, 0.01, "rgba(255,255,255,0.3)");
+      vfill(c, 0.03, 0.17, 0.75, 0.46, 0.02, [[0, "#f0ece6"], [0.15, "#d0cbc4"], [0.6, "#a59f97"], [0.92, "#6e6861"], [1, "#3f3b37"]]);
+      wear(c, 0.03, 0.17, 0.75, 0.46, 11, 30, false);
+      hfill(c, 0.03, 0.17, 0.1, 0.46, 0.02, [[0, "rgba(0,0,0,0.45)"], [1, "rgba(0,0,0,0)"]]);
+      fill(c, 0.11, 0.355, 0.29, 0.395, 0.018, "#1d1a18");
+      fill(c, 0.11, 0.395, 0.29, 0.404, 0.004, "rgba(255,255,255,0.5)");
+      vfill(c, 0.03, 1.75, 0.75, 2.03, 0.02, [[0, "#3f3b37"], [0.08, "#dbd6cd"], [0.4, "#beb7ab"], [0.85, "#8a8378"], [1, "#4a453f"]]);
+      wear(c, 0.03, 1.75, 0.75, 2.03, 31, 26, false);
+      for (const [x0, x1] of [[0.12, 0.17], [0.22, 0.27]]) {
+        fill(c, x0, 1.78, x1, 1.94, 0.025, "#26221e");
+        fill(c, x0 + 0.008, 1.92, x1 - 0.008, 1.935, 0.006, "rgba(255,255,255,0.25)");
+      }
+
+      // Le cadran perforé, à moitié caché par le bloc du mécanisme
+      drawDial(c);
+      fill(c, VIAL.x0 - 0.02, VIAL.y0 - 0.03, 0.34, VIAL.y1 + 0.03, 0, "#040604");
+      c.beginPath();
+      c.moveTo(X(0.33), Y(0.45)); c.lineTo(X(0.72), Y(0.45)); c.lineTo(X(0.72), Y(0.69));
+      c.quadraticCurveTo(X(0.72), Y(0.74), X(0.67), Y(0.74)); c.lineTo(X(0.52), Y(0.74));
+      c.lineTo(X(0.52), Y(1.78)); c.lineTo(X(0.33), Y(1.78)); c.closePath();
+      c.fillStyle = grad(c, 0.33, 0, 0.72, 0, [[0, "#76736f"], [0.1, "#55524f"], [0.6, "#403e3c"], [1, "#2f2e2c"]]);
+      c.fill();
+      c.save(); c.clip(); wear(c, 0.33, 0.45, 0.72, 1.78, 41, 14, true); c.restore();
+      // Molette en haut du bloc
+      circle(c, 0.55, 0.557, 0.075, "#161616");
+      c.lineWidth = Math.max(0.6, k * 0.008); c.strokeStyle = "rgba(150,150,150,0.6)"; c.stroke();
+      c.beginPath(); c.arc(X(0.55), Y(0.557), 0.032 * k, 0, Math.PI * 2);
+      c.fillStyle = grad(c, 0.52, 0.53, 0.58, 0.59, [[0, "#d2d2d4"], [1, "#4a4a4c"]]); c.fill();
+      // Boulons sous le cadran
+      for (const [x0, x1] of [[0.36, 0.415], [0.445, 0.5]]) hfill(c, x0, 1.53, x1, 1.72, 0.012, [[0, "#2c2b2a"], [0.35, "#b9b6b0"], [0.5, "#e8e4dc"], [1, "#3a3836"]]);
+      // Bossage sombre sous le pivot du stylet
+      c.beginPath(); c.arc(X(PIV.x), Y(PIV.y), 0.15 * k, 0, Math.PI * 2);
+      const boss = c.createRadialGradient(X(PIV.x - 0.04), Y(PIV.y - 0.04), 0, X(PIV.x), Y(PIV.y), 0.15 * k);
+      boss.addColorStop(0, "#43413f"); boss.addColorStop(1, "#1a1918");
+      c.fillStyle = boss; c.fill();
+      c.lineWidth = Math.max(0.6, k * 0.006); c.strokeStyle = "rgba(120,114,108,0.55)"; c.stroke();
+
+      drawHandle(c);
     }
+
+    // La plaque d'état est un vrai texte posé sur le dessin : on lui donne la place de la fenêtre
+    function placePlate() {
+      const m = screen.parentElement.style;
+      m.setProperty("--plate-l", X(PLATE.x0) + "px");
+      m.setProperty("--plate-t", Y(PLATE.y0) + "px");
+      m.setProperty("--plate-w", (PLATE.x1 - PLATE.x0) * k + "px");
+      m.setProperty("--plate-h", (PLATE.y1 - PLATE.y0) * k + "px");
+    }
+
+    /* --- La fiole verte : liquide qui ondoie, recalculé en basse résolution --- */
+    const vialC = document.createElement("canvas"), vx = vialC.getContext("2d");
+    vialC.width = 14; vialC.height = 72;
+    const vimg = vx.createImageData(14, 72);
+    function vialFrame(time) {
+      const w = 14, h = 72, d = vimg.data;
+      for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+        const u = (i + 0.5) / w;
+        let n = 0.62 * noise(i * 0.32 + Math.sin(time * 1.3) * 0.6, j * 0.11 - time * 0.9, 1e4, 1)
+          + 0.38 * noise(i * 0.7 + 10, j * 0.28 + time * 0.55, 1e4, 2);
+        n += 0.22 * Math.exp(-(((u - 0.42) / 0.13) ** 2));
+        const b = Math.max(0, Math.min(1, (n + 0.02) * 1.2)) * (0.35 + 0.65 * (1 - Math.abs(2 * u - 1) ** 3));
+        const q = (j * w + i) * 4;
+        d[q] = 8 + 120 * b ** 2.2; d[q + 1] = 30 + 225 * b ** 1.1; d[q + 2] = 10 + 90 * b ** 2.4; d[q + 3] = 255;
+      }
+      vx.putImageData(vimg, 0, 0);
+    }
+    function drawVial(c) {
+      const x = X(VIAL.x0), y = Y(VIAL.y0), w = (VIAL.x1 - VIAL.x0) * k, h = (VIAL.y1 - VIAL.y0) * k;
+      c.imageSmoothingEnabled = true;
+      c.drawImage(vialC, x, y, w, h);
+      c.fillStyle = grad(c, VIAL.x0, 0, VIAL.x1, 0, [[0, "rgba(0,0,0,0.6)"], [0.12, "rgba(0,0,0,0)"], [0.2, "rgba(255,255,255,0.12)"],
+        [0.28, "rgba(255,255,255,0)"], [0.82, "rgba(0,0,0,0)"], [1, "rgba(0,0,0,0.65)"]]);
+      c.fillRect(x, y, w, h);
+      c.fillStyle = grad(c, 0, VIAL.y0, 0, VIAL.y1, [[0, "rgba(0,0,0,0.5)"], [0.05, "rgba(0,0,0,0)"], [0.93, "rgba(0,0,0,0)"], [1, "rgba(0,0,0,0.6)"]]);
+      c.fillRect(x, y, w, h);
+    }
+
+    /* --- Le stylet : bras crème monté sur une tête cuivrée, il pivote et sa pointe décrit un arc --- */
+    function capsule(c, x0, x1, hw) {
+      c.beginPath();
+      c.moveTo(x0 + hw, -hw); c.lineTo(x1 - hw, -hw); c.arc(x1 - hw, 0, hw, -Math.PI / 2, Math.PI / 2);
+      c.lineTo(x0 + hw, hw); c.arc(x0 + hw, 0, hw, Math.PI / 2, -Math.PI / 2); c.closePath();
+    }
+    function drawPen(tip) {
+      const c = hctx, L = Math.hypot(tip.x - PIV.x, tip.y - PIV.y), ARM = L;
+      c.save();
+      c.translate(X(PIV.x), Y(PIV.y));
+      c.rotate(Math.atan2(tip.y - PIV.y, tip.x - PIV.x));
+      c.scale(k, k);
+      c.shadowColor = "rgba(0,0,0,0.5)";
+      c.shadowBlur = 0.025 * k * dpr; c.shadowOffsetX = 0.012 * k * dpr; c.shadowOffsetY = 0.04 * k * dpr;
+      const body = c.createLinearGradient(0, -0.03, 0, 0.03);
+      body.addColorStop(0, "#fffbf3"); body.addColorStop(0.35, "#e9e0d0"); body.addColorStop(0.75, "#b4a997"); body.addColorStop(1, "#6c6255");
+      c.fillStyle = body;
+      c.beginPath();
+      c.moveTo(0.12, -0.03); c.lineTo(ARM - 0.006, -0.019); c.quadraticCurveTo(ARM, -0.019, ARM, -0.012);
+      c.lineTo(ARM, 0.012); c.quadraticCurveTo(ARM, 0.019, ARM - 0.006, 0.019); c.lineTo(0.12, 0.03); c.closePath();
+      c.fill();
+      const head = c.createLinearGradient(0, -0.034, 0, 0.034);
+      head.addColorStop(0, "#f7cfb8"); head.addColorStop(0.45, "#d4967f"); head.addColorStop(1, "#8a5546");
+      c.fillStyle = head;
+      capsule(c, -0.05, 0.16, 0.034);
+      c.fill();
+      c.shadowColor = "transparent";
+      c.fillStyle = "rgba(70,58,46,0.55)";
+      c.fillRect(ARM - 0.007, -0.013, 0.007, 0.026);
+      c.beginPath(); c.arc(0, 0, 0.014, 0, Math.PI * 2); c.fillStyle = "#2b1c18"; c.fill();
+      c.beginPath(); c.arc(-0.004, -0.005, 0.005, 0, Math.PI * 2); c.fillStyle = "rgba(255,230,220,0.5)"; c.fill();
+      c.restore();
+    }
+
+    function resize() {
+      k = Math.min(W / DEV_W, H / DEV_H);
+      ox = (W - DEV_W * k) / 2; oy = (H - DEV_H * k) / 2;
+      paintTile();
+      drawChassis();
+      placePlate();
+      vialClock = 1;
+    }
+    function enter() { t = 0; scroll = 0; nextBeat = 0.25; beats = []; pts = []; }
 
     function frame(dt, p) {
-      const v = W / PAPER_S;
       schedule(p);
       const n = Math.max(1, Math.ceil(dt * 240));
       for (let i = 1; i <= n; i++) {
-        scroll += (v * dt) / n;
-        pts.push({ d: scroll, y: value(t + (dt * i) / n, p) });
+        const tt = t + (dt * i) / n;
+        scroll += (SPEED * dt) / n;
+        const dy = Math.max(-0.9 * ARM, Math.min(0.9 * ARM, -signal(tt, p)));
+        pts.push({ d: scroll, x: PIV.x + ARM - 0.3 * (ARM - Math.sqrt(ARM * ARM - dy * dy)), y: PIV.y + dy });
       }
       for (const b of beats) {
-        const peak = b.start + b.dur * (b.pvc ? 0.5 : 0.38);
-        if (!b.heard && peak <= t + dt) { b.heard = true; if (peak > t - 0.2) onBeat(p); }
+        if (!b.heard && b.t0 <= t + dt) { b.heard = true; if (b.t0 > t - 0.2) onBeat(p); }
       }
       t += dt;
-      let k = 0;
-      while (k < pts.length && penX + scroll - pts[k].d > W + 4) k++;
-      if (k) pts.splice(0, k);
+      let cut = 0;
+      while (cut < pts.length && pts[cut].x + scroll - pts[cut].d > PAPER.x1 + 0.05) cut++;
+      if (cut) pts.splice(0, cut);
 
-      // Le papier avance vers la droite, la courbe avec lui
+      // Papier qui défile vers la droite, puis le tracé, le tout dans la fenêtre
       gctx.clearRect(0, 0, W, H);
-      const off = Math.round((scroll % P) * dpr) / dpr;
-      for (let px = off - P; px < W; px += P) gctx.drawImage(paperC, px, 0, P, H);
-
-      tctx.clearRect(0, 0, W, H);
+      gctx.save();
+      box(gctx, PAPER.x0, PAPER.y0, PAPER.x1, PAPER.y1);
+      gctx.clip();
+      const off = (((scroll * k) % tileW) + tileW) % tileW;
+      for (let x = Math.round((X(PAPER.x0) + off - tileW) * dpr) / dpr; x < X(PAPER.x1); x += tileW) gctx.drawImage(tileC, x, Y(PAPER.y0), tileW, tileH);
       if (pts.length > 1) {
-        tctx.beginPath();
-        pts.forEach((q, i) => { const px = penX + scroll - q.d; i ? tctx.lineTo(px, q.y) : tctx.moveTo(px, q.y); });
-        tctx.lineJoin = "round"; tctx.lineCap = "round";
-        tctx.strokeStyle = ink(p, 0.2); tctx.lineWidth = 3.4; tctx.stroke();
-        tctx.strokeStyle = ink(p); tctx.lineWidth = 1.6; tctx.stroke();
+        gctx.beginPath();
+        pts.forEach((q, i) => { const x = X(q.x + scroll - q.d), y = Y(q.y); i ? gctx.lineTo(x, y) : gctx.moveTo(x, y); });
+        gctx.lineJoin = "round"; gctx.lineCap = "round";
+        gctx.strokeStyle = traceInk(p, 0.3); gctx.lineWidth = 0.03 * k; gctx.stroke();
+        gctx.strokeStyle = traceInk(p); gctx.lineWidth = Math.max(1, 0.0145 * k); gctx.stroke();
       }
+      gctx.restore();
 
       hctx.clearRect(0, 0, W, H);
-      drawDial();
-      drawPen(pts.length ? pts[pts.length - 1].y : y0, p);
+      vialClock += dt;
+      if (vialClock > 1 / 30) { vialFrame(t); vialClock = 0; }
+      drawVial(hctx);
+      drawPen(pts.length ? pts[pts.length - 1] : { x: PIV.x + ARM, y: PIV.y });
     }
 
     return { resize, enter, frame };
   })();
+
+  // Dans la version 2, le texte du bas s'écrit lettre après lettre, comme les descriptions du jeu
+  const hint = $(".hint");
+  const hintParts = [...hint.childNodes].flatMap((n) => n.nodeType === 3 ? [n] : [...n.childNodes]).filter((n) => n.nodeType === 3);
+  const hintText = hintParts.map((n) => n.textContent);
+  let typing = 0;
+  // Les touches (<kbd>) restent cachées tant que la machine n'est pas arrivée jusqu'à elles
+  const show = (n) => { if (n.parentElement !== hint) n.parentElement.style.visibility = n.textContent ? "" : "hidden"; };
+  function typeHint() {
+    clearInterval(typing);
+    hintParts.forEach((n, i) => { n.textContent = hintText[i]; show(n); });
+    if (reduceMotion || view !== recorder) return;
+    hintParts.forEach((n) => { n.textContent = ""; show(n); });
+    let part = 0, pos = 0;
+    typing = setInterval(() => {
+      if (part >= hintParts.length) { clearInterval(typing); return; }
+      pos++;
+      hintParts[part].textContent = hintText[part].slice(0, pos);
+      show(hintParts[part]);
+      if (pos >= hintText[part].length) { part++; pos = 0; }
+    }, 34);
+  }
 
   const views = { moniteur: monitor, remake: recorder };
   let view = monitor;
@@ -589,6 +845,7 @@
     for (const c of [gctx, tctx, hctx]) c.clearRect(0, 0, W, H);
     view.enter();
     resize();
+    typeHint();
   }
   const themeSel = $("#cfg-theme");
   themeSel.value = views[cfg.theme] ? cfg.theme : "moniteur";

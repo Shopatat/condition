@@ -26,7 +26,7 @@ que si l'appli est ouverte. L'écran reste allumé pendant une session tant que 
 - Une pause prise en avance est raccourcie d'autant : arrêter à la moitié de la session donne la moitié de la pause.
 - Deux versions de l'écran, au choix dans les réglages :
   1. **Moniteur** : un point lumineux balaie un écran noir, l'état est écrit en bas à droite.
-  2. **Enregistreur (REmake)** : comme dans Resident Evil REmake, un stylet trace la courbe sur du papier qui défile, et l'état est gravé sur une plaque sous l'appareil.
+  2. **Enregistreur (REmake)** : l'écran de statut de Resident Evil REmake, appareil et interface compris. Fiole verte, cadran perforé, stylet qui trace sur du papier qui défile, état gravé sur la plaque.
 - Le mode démo (dans les réglages) fait passer une minute en une seconde, pratique pour tout voir d'un coup.
 
 ## Organisation des fichiers
@@ -38,7 +38,7 @@ que si l'appli est ouverte. L'écran reste allumé pendant une session tant que 
 | `js/app.js` | Toute la logique : minuteur invisible, tracé de l'ECG, sons, réglages |
 | `sw.js` | Service worker : met l'appli en cache pour le hors ligne |
 | `manifest.webmanifest` | Nom, couleurs et icônes pour l'écran d'accueil |
-| `fonts/` | Libre Caslon Text et Share Tech Mono, embarquées pour marcher hors ligne |
+| `fonts/` | Les polices, embarquées pour marcher hors ligne : Libre Caslon Text et Share Tech Mono (version 1), Sorts Mill Goudy et Gelasio (version 2) |
 | `icons/` | Les icônes, générées par `node outils/icones.js` |
 
 ## Après une modification

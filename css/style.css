@@ -10,6 +10,19 @@
   font-display: swap;
   src: url("../fonts/sharetechmono-latin.woff2") format("woff2");
 }
+/* Polices de la version 2 : Sorts Mill Goudy pour les menus du jeu, Gelasio pour le mot gravé sur la plaque */
+@font-face {
+  font-family: "Sorts Mill Goudy";
+  font-weight: 400;
+  font-display: swap;
+  src: url("../fonts/sortsmillgoudy-latin.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Gelasio";
+  font-weight: 700;
+  font-display: swap;
+  src: url("../fonts/gelasio-700-latin.woff2") format("woff2");
+}
 
 /* Layout : un moniteur cardiaque seul au centre, commandes discrètes dessous. Pas de chiffres, la courbe fait le travail. */
 :root {
@@ -203,68 +216,188 @@ main { max-width: min(920px, calc((100vh - 190px) * 2.5 + 24px)); }
   body, .monitor, .screen, .tag, .bar { transition: none; }
 }
 
-/* ---------- Version 2 : l'enregistreur de REmake ----------
-   Papier gris qui défile sous un stylet, état gravé sur une plaque sous l'appareil. */
-.theme-remake { --font-ui: var(--font-plate); }
-.theme-remake body, .theme-remake.focus body { background: #050505; }
-.theme-remake .monitor, .theme-remake.focus .monitor {
-  padding: 14px 14px 0;
-  border-radius: 6px;
-  background: linear-gradient(180deg, #7a776d, #4b4943 16%, #35342f 60%, #24231f);
-  box-shadow: 0 0 0 1px #000, inset 0 1px 0 rgba(255,255,255,0.28), inset 0 -2px 0 rgba(0,0,0,0.5), 0 20px 50px rgba(0,0,0,0.7);
+
+/* ---------- Version 2 : l'écran de statut de Resident Evil REmake ----------
+   L'appareil est entièrement dessiné dans le canevas. Autour, l'interface reprend le menu du jeu :
+   boutons ronds cerclés de laiton, plaque « Arsenal tactique », cases d'inventaire, boîte de texte à rouleau. */
+.ico, .phase-plate { display: none; }
+.theme-remake {
+  --goudy: "Sorts Mill Goudy", "Goudy Old Style", Garamond, "Times New Roman", serif;
+  --gill: "Gill Sans", "Gill Sans MT", Calibri, system-ui, sans-serif;
+  --salmon: #eba58c;
+  --silver: #a8a7a2;
+  --copper: #e0bd98;
 }
+.theme-remake body, .theme-remake.focus body { background: #000; }
+.theme-remake main { gap: 16px; }
+.theme-remake .monitor, .theme-remake.focus .monitor { padding: 0; background: none; box-shadow: none; border-radius: 0; }
 .theme-remake .screen, .theme-remake.focus .screen {
-  aspect-ratio: 16 / 8;
-  border-radius: 2px;
-  background: #c8c5b7;
-  box-shadow: 0 0 0 2px #191814, 0 1px 0 3px rgba(255,255,255,0.12);
+  aspect-ratio: 338 / 207;
+  background: none; box-shadow: none; border-radius: 0;
 }
-.theme-remake .screen::after { background: radial-gradient(ellipse at center, transparent 55%, rgba(25, 20, 10, 0.35) 100%); }
-.theme-remake .tag {
-  font-family: var(--font-plate);
-  color: var(--ink-state);
-  text-shadow: none;
-  opacity: 0.85;
-  letter-spacing: 0.16em;
-}
+.theme-remake .screen::after, .theme-remake .tag { display: none; }
+
+/* Le mot d'état, gravé dans la fenêtre de la plaque dessinée sous le papier */
 .theme-remake .status {
-  position: static;
-  width: max-content;
-  min-width: 40%;
+  left: var(--plate-l); top: var(--plate-t); right: auto; bottom: auto;
+  width: var(--plate-w); height: var(--plate-h);
+  display: flex; align-items: center; justify-content: center;
+  padding-top: calc(var(--plate-h) * 0.05);
   box-sizing: border-box;
-  margin: 10px auto 12px;
-  padding: 3px 18px 1px;
-  text-align: center;
-  font-size: clamp(16px, 2.6vw, 26px);
+  font-family: "Gelasio", Georgia, serif;
+  font-weight: 700;
+  font-size: calc(var(--plate-h) * 0.74);
+  line-height: 1;
+  letter-spacing: 0.07em;
   color: var(--ink-state);
-  text-shadow: 0 1px 0 rgba(255,255,255,0.5);
-  background: linear-gradient(180deg, #e3e1d7, #bab8ae 55%, #a2a096);
-  border-radius: 2px;
-  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.45), inset 0 2px 3px rgba(0,0,0,0.35), 0 0 0 2px #24231f, 0 1px 0 3px rgba(255,255,255,0.14);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4), 0 0 1px rgba(0, 0, 0, 0.4);
 }
-.theme-remake button {
-  font-size: 15px;
-  text-transform: none;
-  letter-spacing: 0.04em;
-  color: #d8d3c4;
-  background: linear-gradient(180deg, #2e2d28, #161613);
-  border-color: #5c5950;
+
+/* Plaque de la phase, comme « Arsenal tactique » : cadre argenté, fond noir, lettres saumon */
+.theme-remake .phase-plate {
+  display: block;
+  align-self: center;
+  min-width: min(100%, 13em);
+  box-sizing: border-box;
+  padding: 0.2em 1.4em 0.14em;
+  text-align: center;
+  font: 400 clamp(19px, 3.2vw, 25px)/1.25 var(--goudy);
+  letter-spacing: 0.06em;
+  color: var(--salmon);
+  border: 3px solid transparent;
+  background:
+    linear-gradient(#030303, #030303) padding-box,
+    linear-gradient(135deg, #fbfaf6 0%, #8e8b86 20%, #d8d5cf 48%, #75726d 78%, #f3f1ec 100%) border-box;
+  box-shadow: 0 0 0 1px #000, inset 0 0 0 1px #000, inset 0 0 14px rgba(0, 0, 0, 0.9);
+  transition: opacity 0.5s;
 }
-.theme-remake .sessions { text-transform: none; letter-spacing: 0.06em; font-size: 14px; }
-.theme-remake .settings { background: #121210; border-color: #3f3d37; }
-.theme-remake main { max-width: min(920px, calc((100vh - 240px) * 2 + 28px)); }
-.theme-remake.focus main { max-width: min(1200px, calc((100vh - 120px) * 2 + 28px)); }
+.theme-remake.focus .phase-plate {
+  position: fixed; z-index: 10;
+  top: max(12px, env(safe-area-inset-top, 0px)); left: 50%;
+  transform: translateX(-50%);
+  opacity: 0; pointer-events: none;
+}
+.theme-remake.focus.peek .phase-plate { opacity: 1; }
+
+/* Boutons du haut, comme « Quitter », « Fichier », « Carte » : médaillon rond et libellé à côté */
+.theme-remake .bar { order: -1; justify-content: center; gap: 14px 22px; }
+.theme-remake .controls { justify-content: center; gap: 12px 22px; }
+.theme-remake button, .theme-remake button.primary {
+  display: inline-flex; align-items: center; gap: 10px;
+  min-width: 0;
+  padding: 2px 6px 2px 0;
+  background: none; border: 0; border-radius: 30px; box-shadow: none;
+  font: 400 19px/1 var(--goudy);
+  letter-spacing: 0.01em; text-transform: none;
+  color: var(--silver);
+}
+.theme-remake button:hover:not(:disabled) { color: #e6e3da; border: 0; box-shadow: none; }
+.theme-remake button[aria-pressed="true"] .lbl { color: var(--salmon); }
+.theme-remake .ico {
+  display: grid; place-items: center; flex: none;
+  width: 46px; height: 46px; border-radius: 50%;
+  background:
+    radial-gradient(circle, #19150f 0 44%, #6e583a 45% 46.5%, rgba(0, 0, 0, 0) 47.5%),
+    linear-gradient(150deg, #fff3d6 0%, #cdb07f 26%, #5e4831 56%, #2a1f15 72%, #b49567 100%);
+  box-shadow: 0 0 0 1px #000, 0 3px 6px rgba(0, 0, 0, 0.85), inset 0 0 0 1px rgba(0, 0, 0, 0.6);
+}
+.theme-remake .ico svg { width: 23px; height: 23px; fill: #ead7a8; filter: drop-shadow(0 1px 0 #000); }
+.ico .i-pause, [data-ico="pause"] .i-play { display: none; }
+[data-ico="pause"] .i-pause { display: inline; }
+.theme-remake.focus .bar { background: rgba(0, 0, 0, 0.9); box-shadow: 0 0 0 1px #2c2b29; }
+
+/* Sessions : des cases d'inventaire, la case en cours entourée des coins cuivrés */
+.theme-remake .sessions { gap: 12px; font: 400 18px var(--goudy); letter-spacing: 0.02em; text-transform: none; color: var(--silver); }
+.theme-remake .dots { gap: 4px; }
+.theme-remake .dot {
+  position: relative;
+  width: 38px; height: 38px;
+  border: 0; border-radius: 0;
+  background: #262624;
+  box-shadow: inset 0 0 0 1px #3d3d3a, inset 0 0 10px rgba(0, 0, 0, 0.75);
+}
+.theme-remake .dot.done {
+  background: #262624 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 28'%3E%3Crect x='1' y='3' width='38' height='22' fill='%239b9486' stroke='%235a5045'/%3E%3Cpath d='M1 15h8l2-1.5 2 1.5h2l2-10 2.5 14 1.5-4h4l2-2.5 2.5 2.5h10' fill='none' stroke='%23587a47' stroke-width='1.7' stroke-linejoin='round'/%3E%3C/svg%3E") center / 80% no-repeat;
+  box-shadow: inset 0 0 0 1px #3d3d3a, inset 0 0 10px rgba(0, 0, 0, 0.75);
+}
+.theme-remake .dot.now::after {
+  content: "";
+  position: absolute; inset: -3px;
+  --c: var(--copper);
+  background:
+    linear-gradient(var(--c), var(--c)) left top / 10px 2px,
+    linear-gradient(var(--c), var(--c)) left top / 2px 10px,
+    linear-gradient(var(--c), var(--c)) right top / 10px 2px,
+    linear-gradient(var(--c), var(--c)) right top / 2px 10px,
+    linear-gradient(var(--c), var(--c)) left bottom / 10px 2px,
+    linear-gradient(var(--c), var(--c)) left bottom / 2px 10px,
+    linear-gradient(var(--c), var(--c)) right bottom / 10px 2px,
+    linear-gradient(var(--c), var(--c)) right bottom / 2px 10px,
+    linear-gradient(rgba(224, 189, 152, 0.55), rgba(224, 189, 152, 0.55)) center top / 100% 1px,
+    linear-gradient(rgba(224, 189, 152, 0.55), rgba(224, 189, 152, 0.55)) center bottom / 100% 1px,
+    linear-gradient(rgba(224, 189, 152, 0.55), rgba(224, 189, 152, 0.55)) left center / 1px 100%,
+    linear-gradient(rgba(224, 189, 152, 0.55), rgba(224, 189, 152, 0.55)) right center / 1px 100%;
+  background-repeat: no-repeat;
+}
+
+/* La boîte de texte du bas, sous son rouleau de machine à écrire */
+.theme-remake .hint, .theme-remake .settings {
+  position: relative;
+  background: #000;
+  border: 1px solid #2c2b29;
+  border-radius: 0;
+  box-shadow: 0 0 0 1px #000;
+  font-family: var(--gill);
+  color: #ece8db;
+}
+.theme-remake .hint {
+  padding: 48px 18px 18px;
+  min-height: 7.6em;
+  font-size: 17px;
+  line-height: 1.45;
+  letter-spacing: 0.01em;
+}
+.theme-remake .hint::before, .theme-remake .hint::after {
+  content: "";
+  position: absolute; left: 8px; right: 8px; top: 9px;
+  height: 26px; border-radius: 13px;
+}
+.theme-remake .hint::before {
+  background:
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.16) 0 1px, rgba(0, 0, 0, 0) 1px 3px),
+    linear-gradient(180deg, #0c0c0c 0%, #5c5c5b 14%, #e6e6e3 30%, #ffffff 36%, #8b8b89 52%, #2a2a29 72%, #4d4d4b 86%, #0b0b0b 100%);
+  box-shadow: 0 3px 5px rgba(0, 0, 0, 0.9);
+}
+.theme-remake .hint::after {
+  background:
+    linear-gradient(180deg, rgba(255, 230, 210, 0.75), rgba(150, 90, 70, 0) 45%, rgba(40, 20, 14, 0.65)) left / 18px 100% no-repeat,
+    linear-gradient(180deg, rgba(255, 230, 210, 0.75), rgba(150, 90, 70, 0) 45%, rgba(40, 20, 14, 0.65)) right / 18px 100% no-repeat,
+    linear-gradient(90deg, #c98c74 0 18px, rgba(0, 0, 0, 0) 18px calc(100% - 18px), #c98c74 calc(100% - 18px));
+}
+.theme-remake kbd { border-color: #55534e; color: #ece8db; }
+.theme-remake .field { font-size: 15px; letter-spacing: 0.02em; text-transform: none; color: var(--silver); }
+.theme-remake .field input[type="number"], .theme-remake .field select {
+  font: 400 17px var(--gill); color: #ece8db;
+  background: #121211; border-color: #4a4843; border-radius: 0;
+}
+.theme-remake .check { font-size: 16px; color: #ece8db; }
+.theme-remake .check input { accent-color: #c98c74; }
+
+/* Taille : l'appareil entier tient dans la hauteur, surtout en paysage */
+.theme-remake main { max-width: min(860px, max(300px, calc((100vh - 300px) * 1.633))); }
+.theme-remake.focus main { max-width: min(1200px, calc((100vh - 40px) * 1.633)); }
 @supports (height: 100dvh) {
-  .theme-remake main { max-width: min(920px, calc((100dvh - 240px) * 2 + 28px)); }
-  .theme-remake.focus main { max-width: min(1200px, calc((100dvh - 120px) * 2 + 28px)); }
+  .theme-remake main { max-width: min(860px, max(300px, calc((100dvh - 300px) * 1.633))); }
+  .theme-remake.focus main { max-width: min(1200px, calc((100dvh - 40px) * 1.633)); }
 }
 @media (max-height: 520px) {
-  .theme-remake main { max-width: min(920px, calc((100dvh - 190px) * 2 + 28px)); }
-  .theme-remake .status { margin: 6px auto 8px; }
-  .theme-remake button { padding: 8px 12px; }
+  .theme-remake main { max-width: min(860px, calc((100dvh - 110px) * 1.633)); }
+  .theme-remake .phase-plate { font-size: 18px; }
 }
 @media (max-width: 560px) {
-  .theme-remake .screen, .theme-remake.focus .screen { aspect-ratio: 16 / 10; }
   .theme-remake main, .theme-remake.focus main { max-width: 100%; }
-  .theme-remake .monitor, .theme-remake.focus .monitor { padding: 10px 10px 0; }
+  .theme-remake .controls { gap: 10px 14px; justify-content: flex-start; }
+  .theme-remake button, .theme-remake button.primary { flex: 0 1 auto; font-size: 17px; }
+  .theme-remake .ico { width: 42px; height: 42px; }
+  .theme-remake .hint { font-size: 16px; }
 }
