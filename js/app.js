@@ -820,16 +820,26 @@
       m.setProperty("--plate-h", (PLATE.y1 - PLATE.y0) * k + "px");
     }
 
-    /* --- La fiole verte : le liquide descend en veines, et une goutte lumineuse se forme en haut,
-       se détache et tombe jusqu'au fond, comme dans le jeu (une goutte toutes les 0,85 s, chute en 0,5 s) --- */
+    /* --- La fiole d'encre : le liquide descend en veines, et une goutte lumineuse se forme en haut,
+       se détache et tombe jusqu'au fond, comme dans le jeu (une goutte toutes les 0,85 s, chute en 0,5 s).
+       C'est elle qui nourrit le stylet : elle prend la couleur du tracé, vert olive en Ok, puis orange et rouge --- */
     const VW = 18, VH = 90, DRIP = 0.85, FORM = 0.32;
     const vialC = document.createElement("canvas"), vx = vialC.getContext("2d");
     vialC.width = VW; vialC.height = VH;
     const vimg = vx.createImageData(VW, VH);
     // Rapport hauteur / largeur du tube, pour que la goutte reste ronde
     const VR = (VIAL.y1 - VIAL.y0) / (VIAL.x1 - VIAL.x0);
-    function vialFrame(time) {
-      const d = vimg.data;
+    function rgb(h, s, l) {
+      const a = s * Math.min(l, 1 - l), f = (n) => { const q = (n + h / 30) % 12; return 255 * (l - a * Math.max(-1, Math.min(q - 3, 9 - q, 1))); };
+      return [f(0), f(8), f(4)];
+    }
+    // Teintes sombre et claire du liquide ; en Ok on retombe exactement sur le vert olive du jeu
+    function vialInk(p) {
+      const h = Math.min(100, hueAt(p)), s = smooth(0.3, 0.6, p);
+      return [rgb(h + 3, 0.27 + 0.2 * s, 0.16), rgb(h, 0.66 + 0.14 * s, 0.66 - 0.04 * s)];
+    }
+    function vialFrame(time, p) {
+      const d = vimg.data, [lo, hi] = vialInk(p);
       const n0 = Math.floor(time / DRIP), ph = time - n0 * DRIP;
       const wob = (rnd(n0 + 0.37) - 0.5) * 0.08;            // chaque goutte tombe un peu à côté de la précédente
       const falling = ph > FORM, f = (ph - FORM) / (DRIP - FORM);
@@ -853,7 +863,7 @@
         // Colonne claire étroite au centre, bords du tube sombres
         const b = Math.max(0, Math.min(1, n * 1.05)) * (0.24 + 0.76 * Math.exp(-(((u - 0.48) / 0.3) ** 2)));
         const q = (j * VW + i) * 4;
-        d[q] = 36 + 112 * b ** 1.2; d[q + 1] = 52 + 175 * b; d[q + 2] = 30 + 78 * b ** 1.4; d[q + 3] = 255;
+        d[q] = lo[0] + (hi[0] - lo[0]) * b ** 1.2; d[q + 1] = lo[1] + (hi[1] - lo[1]) * b; d[q + 2] = lo[2] + (hi[2] - lo[2]) * b ** 1.4; d[q + 3] = 255;
       }
       vx.putImageData(vimg, 0, 0);
     }
@@ -953,7 +963,7 @@
 
       hctx.clearRect(0, 0, W, H);
       vialClock += dt;
-      if (vialClock > 1 / 30) { vialFrame(t); vialClock = 0; }
+      if (vialClock > 1 / 30) { vialFrame(t, p); vialClock = 0; }
       drawVial(hctx);
       drawPen(pts.length ? pts[pts.length - 1] : { x: PIV.x + ARM, y: PIV.y });
     }
