@@ -228,18 +228,45 @@
     return 0;
   }
   const color = (p, a = 1) => `hsla(${hueAt(p).toFixed(1)}, 96%, ${(58 - 6 * p).toFixed(1)}%, ${a})`;
-  // Version 2 : le vert du jeu est plus éteint, tirant sur l'olive ; il se sature en virant à l'orange puis au rouge
   const smooth = (a, b, x) => { const u = Math.max(0, Math.min(1, (x - a) / (b - a))); return u * u * (3 - 2 * u); };
-  // En Danger, le rouge du jeu est un cramoisi sombre (relevé : environ rgb(120, 22, 24) au cœur du trait)
-  function traceInk(p, a = 1) {
-    const h = Math.min(100, hueAt(p)), s = smooth(0.3, 0.6, p), dz = smooth(0.65, 0.95, p);
-    return `hsla(${(h - 2 * dz).toFixed(1)}, ${(27 + 35 * s + 10 * dz).toFixed(1)}%, ${(38 + 4 * s - 18 * dz).toFixed(1)}%, ${a})`;
+
+  /* Version 2 : les encres. Les deux bouts sont relevés dans le jeu (vert olive en Normal, cramoisi en Danger) ;
+     entre les deux on passe par le jaune puis l'orange. Les teintes sont mélangées dans l'espace OKLab,
+     qui suit l'œil : le passage reste naturel, sans kaki ni brun boueux au milieu.
+     Les teintes intermédiaires sont provisoires, en attendant des enregistrements du jeu en Attention. */
+  const lin = (c) => { c /= 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+  const unlin = (c) => 255 * (c <= 0.0031308 ? 12.92 * c : 1.055 * Math.max(0, c) ** (1 / 2.4) - 0.055);
+  function oklab([r, g, b]) {
+    r = lin(r); g = lin(g); b = lin(b);
+    const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+    const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+    const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+    return [0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s, 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
+      0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s];
   }
+  function srgb([L, A, B]) {
+    const l = (L + 0.3963377774 * A + 0.2158037573 * B) ** 3, m = (L - 0.1055613458 * A - 0.0638541728 * B) ** 3;
+    const s = (L - 0.0894841775 * A - 1.291485548 * B) ** 3;
+    return [4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s, -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+      -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s].map((c) => Math.max(0, Math.min(255, unlin(c))));
+  }
+  function ramp(stops, p) {
+    let i = 1;
+    while (i < stops.length - 1 && p > stops[i][0]) i++;
+    const [p0, c0] = stops[i - 1], [p1, c1] = stops[i], u = smooth(p0, p1, p);
+    const a = oklab(c0), b = oklab(c1);
+    return srgb(a.map((v, j) => v + (b[j] - v) * u));
+  }
+  const INK = {
+    trace: [[0, [88, 123, 71]], [0.3, [100, 126, 62]], [0.48, [158, 132, 42]], [0.66, [176, 92, 36]], [0.86, [118, 24, 25]], [1, [105, 17, 20]]],
+    plate: [[0, [46, 74, 38]], [0.3, [56, 76, 32]], [0.48, [104, 84, 18]], [0.66, [120, 56, 18]], [0.86, [122, 24, 26]], [1, [121, 21, 25]]],
+    vialLo: [[0, [36, 52, 30]], [0.3, [42, 52, 26]], [0.48, [56, 48, 14]], [0.66, [54, 28, 10]], [0.86, [26, 3, 3]], [1, [17, 0, 1]]],
+    vialHi: [[0, [149, 226, 111]], [0.3, [170, 224, 100]], [0.48, [222, 206, 92]], [0.66, [226, 140, 58]], [0.86, [150, 22, 20]], [1, [121, 6, 10]]],
+  };
+  const rgba = (c, a = 1) => `rgba(${c.map(Math.round).join(",")},${a})`;
+  const traceInk = (p, a = 1) => rgba(ramp(INK.trace, p), a);
   // Encre gravée de la plaque d'état
-  function plateInk(p) {
-    const h = Math.min(107, hueAt(p)), s = smooth(0.3, 0.6, p), dz = smooth(0.65, 0.95, p);
-    return `hsl(${(h - 2 * dz).toFixed(1)}, ${(32 + 28 * s + 10 * dz).toFixed(1)}%, ${(22 + 4 * s + 2 * dz).toFixed(1)}%)`;
-  }
+  const plateInk = (p) => rgba(ramp(INK.plate, p));
   const wordFor = (p) => p < 0.42 ? "Ok" : p < 0.78 ? "Attention" : "Danger";
 
   /* ---------- Écran : deux versions au choix dans les réglages ---------- */
@@ -278,7 +305,10 @@
   const monitor = (() => {
     const bufC = document.createElement("canvas"), bctx = bufC.getContext("2d");
     const SWEEP_S = 3.2, TAU = 1.5;
-    let y0 = 0, amp = 0, x = 0, sweep = null, gridHue = -1;
+    // Le rythme suit le temps, pas le balayage : quand le point revient à gauche, le cœur continue sans à-coup
+    let y0 = 0, amp = 0, x = 0, gridHue = -1;
+    let t = 0, nextBeat = 0.4, beats = [], seed = Math.random() * 10;
+    const speed = () => W / SWEEP_S;
 
     function resize(oldW) {
       // Garde le tracé déjà dessiné quand l'écran change de taille (vue épurée, rotation)
@@ -294,11 +324,11 @@
       y0 = H * 0.6; amp = H * 0.42;
       gridHue = -1;
       x = Math.min(W - 1, x * (oldW ? W / oldW : 0));
-      newSweep();
     }
     function enter() {
       bctx.clearRect(0, 0, bufC.width, bufC.height);
       x = 0; gridHue = -1;
+      t = 0; nextBeat = 0.4; beats = [];
     }
 
     function drawGrid(p) {
@@ -314,38 +344,37 @@
       }
     }
 
-    // Prépare les battements d'un balayage complet, de gauche à droite
-    function makeSweep(p) {
-      const v = W / SWEEP_S;
-      const spacing = (v * 60) / bpmFor(p);
-      const bw = Math.min(spacing * 0.75, H * 0.5, 74);
-      const jitter = jitterFor(p), irregular = irregularFor(p);
-      const s = { beats: [], wobble: Math.max(0, p - 0.65) * H * 0.02, seed: Math.random() * 10 };
-      let bx = spacing * (0.25 + Math.random() * 0.5);
-      while (bx < W - bw * 0.4) {
+    // Prévoit les battements un peu à l'avance, chacun à la suite du précédent (durées en secondes)
+    function schedule(p) {
+      const v = speed();
+      while (nextBeat < t + 2) {
+        const period = 60 / bpmFor(p);
+        const dur = Math.min(period * 0.75, (H * 0.5) / v, 74 / v);
         const pvc = pvcFor(p);
-        s.beats.push({ x: bx, w: pvc ? bw * 1.15 : bw, a: 1 + (Math.random() * 2 - 1) * jitter, pvc, heard: false });
-        bx += spacing * (1 + (Math.random() * 2 - 1) * irregular);
+        beats.push({ t0: nextBeat, dur: pvc ? dur * 1.15 : dur, a: 1 + (Math.random() * 2 - 1) * jitterFor(p), pvc, heard: false });
+        nextBeat += period * (1 + (Math.random() * 2 - 1) * irregularFor(p));
       }
-      return s;
+      while (beats.length && beats[0].t0 + beats[0].dur < t - 1) beats.shift();
     }
-    function newSweep() { sweep = makeSweep(progress()); }
 
-    function yAt(px) {
+    function yAt(tt, p) {
       let y = y0;
-      for (const b of sweep.beats) {
-        const u = (px - b.x) / b.w;
+      for (const b of beats) {
+        const u = (tt - b.t0) / b.dur;
         if (u >= 0 && u <= 1) { y -= amp * b.a * shape(u, b.pvc); break; }
       }
-      if (sweep.wobble) y += sweep.wobble * (Math.sin(px * 0.07 + sweep.seed) + 0.5 * Math.sin(px * 0.19 + sweep.seed * 2));
+      const wobble = Math.max(0, p - 0.65) * H * 0.02;
+      if (wobble) { const q = tt * speed(); y += wobble * (Math.sin(q * 0.07 + seed) + 0.5 * Math.sin(q * 0.19 + seed * 2)); }
       return y;
     }
 
-    function drawSegment(xa, xb, p) {
+    // Trace de l'instant ta à tb, la tête partant de xa
+    function drawSegment(ta, tb, xa, p) {
+      const v = speed(), xb = xa + (tb - ta) * v;
       bctx.beginPath();
-      bctx.moveTo(xa, yAt(xa));
-      for (let px = xa + 0.6; px < xb; px += 0.6) bctx.lineTo(px, yAt(px));
-      bctx.lineTo(xb, yAt(xb));
+      bctx.moveTo(xa, yAt(ta, p));
+      for (let px = xa + 0.6; px < xb; px += 0.6) bctx.lineTo(px, yAt(ta + (px - xa) / v, p));
+      bctx.lineTo(xb, yAt(tb, p));
       bctx.lineJoin = "round"; bctx.lineCap = "round";
       bctx.strokeStyle = color(p);
       bctx.shadowColor = color(p);
@@ -357,9 +386,9 @@
       bctx.lineWidth = 0.9;
       bctx.stroke();
 
-      for (const b of sweep.beats) {
-        const peak = b.x + b.w * (b.pvc ? 0.5 : 0.38);
-        if (!b.heard && peak > xa && peak <= xb) { b.heard = true; onBeat(p); }
+      for (const b of beats) {
+        const peak = b.t0 + b.dur * (b.pvc ? 0.5 : 0.38);
+        if (!b.heard && peak <= tb) { b.heard = true; if (peak > ta - 0.2) onBeat(p); }
       }
     }
 
@@ -376,13 +405,14 @@
     function frame(dt, p) {
       if (Math.abs(hueAt(p) - gridHue) > 2) { drawGrid(p); gridHue = hueAt(p); }
 
-      let remaining = (W / SWEEP_S) * dt;
-      while (remaining > 0.01) {
-        const xb = Math.min(W, x + remaining);
-        drawSegment(x, xb, p);
-        remaining -= xb - x;
-        x = xb;
-        if (x >= W) { x = 0; newSweep(); }
+      schedule(p);
+      const v = speed();
+      let remaining = dt;
+      while (remaining > 1e-5) {
+        const step = Math.min(remaining, (W - x) / v);
+        drawSegment(t, t + step, x, p);
+        t += step; x += step * v; remaining -= step;
+        if (x >= W - 0.01) x = 0;
       }
       bctx.clearRect(x + 2, 0, Math.max(14, W * 0.025), H);
 
@@ -396,7 +426,7 @@
 
       // Point lumineux de la tête
       hctx.clearRect(0, 0, W, H);
-      const hy = yAt(x);
+      const hy = yAt(t, p);
       const rad = hctx.createRadialGradient(x, hy, 0, x, hy, 12);
       rad.addColorStop(0, `hsla(${hueAt(p)}, 100%, 92%, 0.95)`);
       rad.addColorStop(0.3, color(p, 0.55));
@@ -716,7 +746,7 @@
     }
 
     function drawHandle(c) {
-      // Attaches haute et basse, puis la barre crème polie ; les deux écrous qui tournent sont dessinés à chaque image
+      // Attaches haute et basse, puis la barre crème polie ; les deux rouleaux qui tournent sont dessinés à chaque image
       cylinder(c, 3.03, 0.25, 3.27, 0.335, 0.02, "h", "cream", 0.4);
       cylinder(c, 3.03, 1.915, 3.27, 2.0, 0.02, "h", "cream", 0.4);
       cylinder(c, 3.17, 0.27, 3.27, 1.98, 0.05, "v", "cream", 0.7);
@@ -724,47 +754,58 @@
       glint(c, 3.2, 1.05, 0.09, 0.55, [3.17, 0.27, 3.27, 1.98]);
     }
 
-    /* --- Les deux écrous noirs de la barre de droite : ils tournent avec la bande ---
-       Prismes à six pans vus de face, la face avant file vers la gauche ; dans le jeu une face passe
-       toutes les 0,23 s, soit 3,94 radians par g de papier. Celui du bas porte une vis sur chaque pan. */
-    const NUTS = [[0.575, 0.71, false], [1.42, 1.555, true]], NUT_X = 3.21, NUT_R = 0.165;
-    function drawNuts(c) {
-      const N = 6, th = -scroll * 3.94, half = Math.PI / N, lw = Math.max(0.6, k * 0.005);
-      const gray = (v, a = 1) => `rgba(${Math.round(v)},${Math.round(v * 0.98)},${Math.round(v * 0.95)},${a})`;
-      for (const [y0, y1, pin] of NUTS) {
+    /* --- Les deux rouleaux noirs de la barre de droite : ce sont eux qui entraînent la bande ---
+       Des cylindres lisses, comme les rouleaux d'un tapis de caisse : pas d'arête, la lumière reste fixe
+       et c'est la surface (crasse, vis) qui tourne. Dans le jeu un motif passe toutes les 0,23 s,
+       la face avant filant vers la gauche, soit 3,94 radians par g de papier. Celui du bas porte six vis. */
+    const ROLLERS = [[0.575, 0.71, false], [1.42, 1.555, true]], ROLL_X = 3.21, ROLL_R = 0.16;
+    function drawRollers(c) {
+      const th = -scroll * 3.94, x0 = ROLL_X - ROLL_R, x1 = ROLL_X + ROLL_R;
+      for (const [y0, y1, pins] of ROLLERS) {
+        const h = y1 - y0, clip = [x0, y0, x1, y1];
         c.save();
         c.shadowColor = "rgba(0,0,0,0.75)"; c.shadowBlur = 0.03 * k * dpr; c.shadowOffsetY = 0.02 * k * dpr;
-        fill(c, NUT_X - NUT_R * 0.86, y0, NUT_X + NUT_R * 0.86, y1, 0.008, "#0b0b0b");
+        fill(c, x0, y0, x1, y1, 0.012, "#0b0b0b");
         c.restore();
-        for (let i = 0; i < N; i++) {
-          // Angle de la normale du pan, rabattu entre -π et π (0 = face au regard)
-          let a = th + i * 2 * half;
+        // Corps du rouleau : laque noire, reflets fixes de gauche à droite
+        fill(c, x0, y0, x1, y1, 0.012, grad(c, x0, 0, x1, 0, ENV.black));
+        c.save();
+        box(c, x0, y0, x1, y1, 0.012); c.clip();
+        // La surface qui tourne : chaque marque suit le tour, se tasse et s'efface vers les bords
+        for (let i = 0; i < 14; i++) {
+          let a = th + i * 0.449 + rnd(i + (pins ? 5.5 : 1.5)) * 0.3;
           a = a - Math.PI * 2 * Math.floor((a + Math.PI) / (Math.PI * 2));
-          if (Math.cos(a) <= 0.01) continue;
-          const xa = NUT_X + NUT_R * Math.sin(a - half), xb = NUT_X + NUT_R * Math.sin(a + half);
-          // Laque noire : lumière diffuse venue de gauche, reflet franc quand le pan regarde la lampe
-          const d = Math.max(0, Math.cos(a + 1.0)), s = Math.max(0, Math.cos(a + 0.8)) ** 10;
-          const v = 14 + 40 * d + 120 * s;
-          // Le pan renvoie un peu de la pièce : plus clair vers la lampe, terni vers le bas
-          fill(c, xa, y0, xb, y1, 0, grad(c, xa, 0, xb, 0, [[0, gray(v * 1.15)], [0.5, gray(v)], [1, gray(v * 0.7)]]));
-          fill(c, xa, y0, xb, y1, 0, grad(c, 0, y0, 0, y1, [[0, "rgba(255,250,240,0.1)"], [0.35, "rgba(0,0,0,0)"], [1, "rgba(0,0,0,0.5)"]]));
-          // Crasse prise dans le pan : une coulure floue qui tourne avec lui
-          const gc = xa + (xb - xa) * (0.25 + 0.5 * rnd(i + 1.7 + (pin ? 9 : 0))), gw = (xb - xa) * 0.3;
-          fill(c, gc - gw, y0, gc + gw, y1, 0, grad(c, gc - gw, 0, gc + gw, 0, [[0, "rgba(34,24,14,0)"], [0.5, `rgba(34,24,14,${(0.25 + 0.3 * rnd(i + 3.3)).toFixed(2)})`], [1, "rgba(34,24,14,0)"]]));
-          // Arête de gauche du pan, usée et claire quand elle prend la lumière
-          c.fillStyle = gray(225, 0.12 + 0.45 * d);
-          c.fillRect(X(xa), Y(y0), lw, (y1 - y0) * k);
-          if (pin) {
-            const xm = NUT_X + NUT_R * Math.cos(half) * Math.sin(a), ym = (y0 + y1) / 2, rr = 0.016 * k;
-            c.beginPath(); c.ellipse(X(xm), Y(ym), rr * Math.cos(a), rr, 0, 0, Math.PI * 2);
-            c.fillStyle = gray(30 + 120 * d); c.fill();
-            c.beginPath(); c.ellipse(X(xm) - rr * 0.25 * Math.cos(a), Y(ym) - rr * 0.3, rr * 0.4 * Math.cos(a), rr * 0.35, 0, 0, Math.PI * 2);
-            c.fillStyle = gray(200, 0.25 + 0.5 * d); c.fill();
-          }
+          const ca = Math.cos(a);
+          if (ca <= 0.05) continue;
+          const xm = ROLL_X + ROLL_R * Math.sin(a), w = (0.025 + 0.05 * rnd(i + 2.9)) * ca;
+          const ym = y0 + h * (0.2 + 0.6 * rnd(i + 3.7)), hh = h * (0.25 + 0.5 * rnd(i + 4.1));
+          const light = rnd(i + 6.3) > 0.65, al = (light ? 0.28 : 0.65) * ca;
+          const col = light ? "255,248,236" : "26,18,10";
+          const gr = c.createRadialGradient(X(xm), Y(ym), 0, X(xm), Y(ym), Math.max(w, hh / 2) * k);
+          gr.addColorStop(0, `rgba(${col},${al.toFixed(3)})`); gr.addColorStop(1, `rgba(${col},0)`);
+          c.save();
+          c.translate(X(xm), Y(ym)); c.scale(w / Math.max(w, hh / 2), (hh / 2) / Math.max(w, hh / 2)); c.translate(-X(xm), -Y(ym));
+          c.fillStyle = gr; c.fillRect(X(xm) - Math.max(w, hh / 2) * k, Y(ym) - Math.max(w, hh / 2) * k, 2 * Math.max(w, hh / 2) * k, 2 * Math.max(w, hh / 2) * k);
+          c.restore();
         }
-        // Dessus de l'écrou : fil de lumière ; dessous : ombre
-        fill(c, NUT_X - NUT_R * 0.9, y0, NUT_X + NUT_R * 0.9, y0 + 0.012, 0.004, "rgba(214,208,198,0.45)");
-        fill(c, NUT_X - NUT_R * 0.9, y1 - 0.01, NUT_X + NUT_R * 0.9, y1, 0, "rgba(0,0,0,0.6)");
+        if (pins) for (let i = 0; i < 6; i++) {
+          let a = th + (i * Math.PI) / 3;
+          a = a - Math.PI * 2 * Math.floor((a + Math.PI) / (Math.PI * 2));
+          const ca = Math.cos(a);
+          if (ca <= 0.08) continue;
+          const xm = ROLL_X + ROLL_R * Math.sin(a), ym = (y0 + y1) / 2, rr = 0.016 * k;
+          // La vis prend la lumière quand elle passe côté gauche
+          const lit = Math.max(0, Math.cos(a + 0.9));
+          c.beginPath(); c.ellipse(X(xm), Y(ym), rr * ca, rr, 0, 0, Math.PI * 2);
+          c.fillStyle = `rgba(${Math.round(40 + 90 * lit)},${Math.round(39 + 88 * lit)},${Math.round(37 + 84 * lit)},${(0.5 + 0.5 * ca).toFixed(2)})`; c.fill();
+          c.beginPath(); c.ellipse(X(xm) - rr * 0.25 * ca, Y(ym) - rr * 0.3, rr * 0.4 * ca, rr * 0.35, 0, 0, Math.PI * 2);
+          c.fillStyle = `rgba(230,225,215,${(0.2 + 0.5 * lit * ca).toFixed(2)})`; c.fill();
+        }
+        // Le volume : bord haut qui accroche la lumière, bas dans l'ombre
+        fill(c, x0, y0, x1, y1, 0, grad(c, 0, y0, 0, y1, [[0, "rgba(255,250,240,0.18)"], [0.12, "rgba(255,250,240,0)"], [0.7, "rgba(0,0,0,0)"], [1, "rgba(0,0,0,0.55)"]]));
+        c.restore();
+        fill(c, x0 + 0.01, y0, x1 - 0.01, y0 + 0.01, 0.004, "rgba(214,208,198,0.5)");
+        glint(c, x0 + ROLL_R * 0.32, y0 + h * 0.3, 0.05, 0.45, clip);
       }
     }
 
@@ -923,17 +964,8 @@
     const vimg = vx.createImageData(VW, VH);
     // Rapport hauteur / largeur du tube, pour que la goutte reste ronde
     const VR = (VIAL.y1 - VIAL.y0) / (VIAL.x1 - VIAL.x0);
-    function rgb(h, s, l) {
-      const a = s * Math.min(l, 1 - l), f = (n) => { const q = (n + h / 30) % 12; return 255 * (l - a * Math.max(-1, Math.min(q - 3, 9 - q, 1))); };
-      return [f(0), f(8), f(4)];
-    }
-    // Teintes sombre et claire du liquide : une encre épaisse, un peu plus sombre que le trait.
-    // En Danger, le jeu montre un rouge sang très saturé et sombre (de rgb(18, 0, 1) à rgb(120, 5, 12))
-    function vialInk(p) {
-      const h = Math.min(100, hueAt(p)), s = smooth(0.3, 0.6, p), dz = smooth(0.65, 0.95, p);
-      return [rgb(h + 3 - 3 * dz, 0.3 + 0.2 * s + 0.45 * dz, 0.085 - 0.05 * dz),
-        rgb(h - 2 * dz, 0.42 + 0.16 * s + 0.32 * dz, 0.4 - 0.04 * s - 0.11 * dz)];
-    }
+    // Teintes sombre et claire du liquide, relevées dans le jeu : la fiole est le réservoir d'encre du stylet
+    const vialInk = (p) => [ramp(INK.vialLo, p), ramp(INK.vialHi, p)];
     function vialFrame(time, p) {
       const d = vimg.data, [lo, hi] = vialInk(p);
       const n0 = Math.floor(time / DRIP), ph = time - n0 * DRIP;
@@ -1061,7 +1093,7 @@
       vialClock += dt;
       if (vialClock > 1 / 30) { vialFrame(t, p); vialClock = 0; }
       drawVial(hctx);
-      drawNuts(hctx);
+      drawRollers(hctx);
       drawPen(pts.length ? pts[pts.length - 1] : { x: PIV.x + ARM, y: PIV.y });
     }
 
