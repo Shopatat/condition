@@ -1,2 +1,5 @@
 # Captures de Resident Evil et version artifact : gardées en local seulement
 references/
+
+# Réglages locaux de Claude Code (serveur de test)
+.claude/

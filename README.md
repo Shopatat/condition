@@ -24,6 +24,9 @@ que si l'appli est ouverte. L'écran reste allumé pendant une session tant que 
 - Pendant une session, il ne reste que la courbe et l'état en bas à droite. Touche l'écran pour retrouver les commandes quelques secondes.
 - À la fin de la concentration, Danger reste affiché et clignote jusqu'à ce que tu prennes ta pause.
 - Une pause prise en avance est raccourcie d'autant : arrêter à la moitié de la session donne la moitié de la pause.
+- Deux versions de l'écran, au choix dans les réglages :
+  1. **Moniteur** : un point lumineux balaie un écran noir, l'état est écrit en bas à droite.
+  2. **Enregistreur (REmake)** : comme dans Resident Evil REmake, un stylet trace la courbe sur du papier qui défile, et l'état est gravé sur une plaque sous l'appareil.
 - Le mode démo (dans les réglages) fait passer une minute en une seconde, pratique pour tout voir d'un coup.
 
 ## Organisation des fichiers

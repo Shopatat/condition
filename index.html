@@ -27,8 +27,8 @@
       <canvas id="trace"></canvas>
       <canvas id="head"></canvas>
       <div class="tag center" id="phaseTag">Concentration</div>
-      <div class="status" id="status" aria-live="polite">Ok</div>
     </div>
+    <div class="status" id="status" aria-live="polite">Ok</div>
   </div>
 
   <div class="bar">
@@ -42,6 +42,10 @@
   </div>
 
   <form class="settings" id="settings" hidden>
+    <label class="field">Version de l'écran<select id="cfg-theme">
+      <option value="moniteur">1 · Moniteur</option>
+      <option value="remake">2 · Enregistreur (REmake)</option>
+    </select></label>
     <label class="field">Concentration (min)<input id="cfg-work" type="number" min="1" max="180" step="1"></label>
     <label class="field">Pause courte (min)<input id="cfg-short" type="number" min="1" max="60" step="1"></label>
     <label class="field">Pause longue (min)<input id="cfg-long" type="number" min="1" max="90" step="1"></label>
