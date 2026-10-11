@@ -714,21 +714,23 @@
       const falling = ph > FORM, f = (ph - FORM) / (DRIP - FORM);
       const cy = falling ? 0.1 + 0.9 * f ** 1.15 : 0.04 + 0.06 * (ph / FORM);
       const cx = 0.48 + wob * (falling ? f : 0);
-      const ry = (falling ? 0.036 + 0.018 * f : 0.022 + 0.022 * (ph / FORM));
-      const rx = ry * VR * 0.9;
+      const ry = (falling ? 0.03 + 0.012 * f : 0.02 + 0.016 * (ph / FORM));
+      const rx = ry * VR * 0.75;
       const glow = falling ? 1 - 0.35 * f ** 3 : 0.45 + 0.55 * (ph / FORM);
       for (let j = 0; j < VH; j++) for (let i = 0; i < VW; i++) {
         const u = (i + 0.5) / VW, v = (j + 0.5) / VH;
         // Veines verticales qui descendent à vitesse moyenne
         let n = 0.46 * noise(i * 0.42, j * 0.05 - time * 2.6, 1e4, 1) + 0.26 * noise(i * 0.9 + 7, j * 0.11 - time * 4.2, 1e4, 2);
-        n += 0.14 * Math.exp(-(((u - 0.47) / 0.16) ** 2));
+        n += 0.15 * Math.exp(-(((u - 0.47) / 0.12) ** 2));
         // Filet clair qui tombe du haut, et la goutte avec sa traînée
         const dx = u - cx, dy = v - cy;
         // La larme qui reste accrochée en haut et s'étire vers le bas
-        n += 0.42 * Math.exp(-((((u - 0.5) / (0.07 + 0.5 * v))) ** 2)) * Math.exp(-v / 0.13);
-        n += 0.6 * glow * Math.exp(-((dx / rx) ** 2) - ((dy / ry) ** 2));
-        if (dy < 0) n += 0.3 * glow * Math.exp(-((dx / (rx * 0.45)) ** 2)) * Math.exp(dy / 0.12);
-        const b = Math.max(0, Math.min(1, n * 1.05)) * (0.3 + 0.7 * (1 - Math.abs(2 * u - 1) ** 3));
+        n += 0.36 * Math.exp(-((((u - 0.5) / (0.05 + 0.3 * v))) ** 2)) * Math.exp(-v / 0.13);
+        // La goutte reste discrète : un léger renflement de lumière, pas un éclat
+        n += 0.28 * glow * Math.exp(-((dx / rx) ** 2) - ((dy / ry) ** 2));
+        if (dy < 0) n += 0.12 * glow * Math.exp(-((dx / (rx * 0.45)) ** 2)) * Math.exp(dy / 0.12);
+        // Colonne claire étroite au centre, bords du tube sombres
+        const b = Math.max(0, Math.min(1, n * 1.05)) * (0.25 + 0.75 * Math.exp(-(((u - 0.48) / 0.33) ** 2)));
         const q = (j * VW + i) * 4;
         d[q] = 36 + 112 * b ** 1.2; d[q + 1] = 52 + 175 * b; d[q + 2] = 30 + 78 * b ** 1.4; d[q + 3] = 255;
       }
