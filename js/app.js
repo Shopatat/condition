@@ -699,20 +699,38 @@
       m.setProperty("--plate-h", (PLATE.y1 - PLATE.y0) * k + "px");
     }
 
-    /* --- La fiole verte : liquide qui ondoie, recalculé en basse résolution --- */
+    /* --- La fiole verte : le liquide descend en veines, et une goutte lumineuse se forme en haut,
+       se détache et tombe jusqu'au fond, comme dans le jeu (une goutte toutes les 0,85 s, chute en 0,5 s) --- */
+    const VW = 18, VH = 90, DRIP = 0.85, FORM = 0.32;
     const vialC = document.createElement("canvas"), vx = vialC.getContext("2d");
-    vialC.width = 14; vialC.height = 72;
-    const vimg = vx.createImageData(14, 72);
+    vialC.width = VW; vialC.height = VH;
+    const vimg = vx.createImageData(VW, VH);
+    // Rapport hauteur / largeur du tube, pour que la goutte reste ronde
+    const VR = (VIAL.y1 - VIAL.y0) / (VIAL.x1 - VIAL.x0);
     function vialFrame(time) {
-      const w = 14, h = 72, d = vimg.data;
-      for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
-        const u = (i + 0.5) / w;
-        let n = 0.62 * noise(i * 0.32 + Math.sin(time * 1.3) * 0.6, j * 0.11 - time * 0.9, 1e4, 1)
-          + 0.38 * noise(i * 0.7 + 10, j * 0.28 + time * 0.55, 1e4, 2);
-        n += 0.22 * Math.exp(-(((u - 0.42) / 0.13) ** 2));
-        const b = Math.max(0, Math.min(1, (n + 0.02) * 1.2)) * (0.35 + 0.65 * (1 - Math.abs(2 * u - 1) ** 3));
-        const q = (j * w + i) * 4;
-        d[q] = 8 + 120 * b ** 2.2; d[q + 1] = 30 + 225 * b ** 1.1; d[q + 2] = 10 + 90 * b ** 2.4; d[q + 3] = 255;
+      const d = vimg.data;
+      const n0 = Math.floor(time / DRIP), ph = time - n0 * DRIP;
+      const wob = (rnd(n0 + 0.37) - 0.5) * 0.08;            // chaque goutte tombe un peu à côté de la précédente
+      const falling = ph > FORM, f = (ph - FORM) / (DRIP - FORM);
+      const cy = falling ? 0.1 + 0.9 * f ** 1.15 : 0.04 + 0.06 * (ph / FORM);
+      const cx = 0.48 + wob * (falling ? f : 0);
+      const ry = (falling ? 0.036 + 0.018 * f : 0.022 + 0.022 * (ph / FORM));
+      const rx = ry * VR * 0.9;
+      const glow = falling ? 1 - 0.35 * f ** 3 : 0.45 + 0.55 * (ph / FORM);
+      for (let j = 0; j < VH; j++) for (let i = 0; i < VW; i++) {
+        const u = (i + 0.5) / VW, v = (j + 0.5) / VH;
+        // Veines verticales qui descendent à vitesse moyenne
+        let n = 0.46 * noise(i * 0.42, j * 0.05 - time * 2.6, 1e4, 1) + 0.26 * noise(i * 0.9 + 7, j * 0.11 - time * 4.2, 1e4, 2);
+        n += 0.14 * Math.exp(-(((u - 0.47) / 0.16) ** 2));
+        // Filet clair qui tombe du haut, et la goutte avec sa traînée
+        const dx = u - cx, dy = v - cy;
+        // La larme qui reste accrochée en haut et s'étire vers le bas
+        n += 0.42 * Math.exp(-((((u - 0.5) / (0.07 + 0.5 * v))) ** 2)) * Math.exp(-v / 0.13);
+        n += 0.6 * glow * Math.exp(-((dx / rx) ** 2) - ((dy / ry) ** 2));
+        if (dy < 0) n += 0.3 * glow * Math.exp(-((dx / (rx * 0.45)) ** 2)) * Math.exp(dy / 0.12);
+        const b = Math.max(0, Math.min(1, n * 1.05)) * (0.3 + 0.7 * (1 - Math.abs(2 * u - 1) ** 3));
+        const q = (j * VW + i) * 4;
+        d[q] = 36 + 112 * b ** 1.2; d[q + 1] = 52 + 175 * b; d[q + 2] = 30 + 78 * b ** 1.4; d[q + 3] = 255;
       }
       vx.putImageData(vimg, 0, 0);
     }
