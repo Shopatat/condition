@@ -698,21 +698,96 @@
     }
 
     function drawHandle(c) {
-      // Attaches haute et basse, puis la barre crème polie, puis les deux colliers noirs vernis
+      // Attaches haute et basse, puis la barre crème polie ; les deux écrous qui tournent sont dessinés à chaque image
       cylinder(c, 3.03, 0.25, 3.27, 0.335, 0.02, "h", "cream", 0.4);
       cylinder(c, 3.03, 1.915, 3.27, 2.0, 0.02, "h", "cream", 0.4);
       cylinder(c, 3.17, 0.27, 3.27, 1.98, 0.05, "v", "cream", 0.7);
       glint(c, 3.2, 0.4, 0.06, 0.8, [3.17, 0.27, 3.27, 1.98]);
       glint(c, 3.2, 1.05, 0.09, 0.55, [3.17, 0.27, 3.27, 1.98]);
-      for (const [y0, y1] of [[0.575, 0.71], [1.42, 1.555]]) {
+    }
+
+    /* --- Les deux écrous noirs de la barre de droite : ils tournent avec la bande ---
+       Prismes à six pans vus de face, la face avant file vers la gauche ; dans le jeu une face passe
+       toutes les 0,23 s, soit 3,94 radians par g de papier. Celui du bas porte une vis sur chaque pan. */
+    const NUTS = [[0.575, 0.71, false], [1.42, 1.555, true]], NUT_X = 3.21, NUT_R = 0.165;
+    function drawNuts(c) {
+      const N = 6, th = -scroll * 3.94, half = Math.PI / N, lw = Math.max(0.6, k * 0.005);
+      const gray = (v, a = 1) => `rgba(${Math.round(v)},${Math.round(v * 0.98)},${Math.round(v * 0.95)},${a})`;
+      for (const [y0, y1, pin] of NUTS) {
         c.save();
-        c.shadowColor = "rgba(0,0,0,0.7)"; c.shadowBlur = 0.03 * k * dpr; c.shadowOffsetY = 0.02 * k * dpr;
-        fill(c, 3.05, y0, 3.37, y1, 0.02, "#111");
+        c.shadowColor = "rgba(0,0,0,0.75)"; c.shadowBlur = 0.03 * k * dpr; c.shadowOffsetY = 0.02 * k * dpr;
+        fill(c, NUT_X - NUT_R * 0.86, y0, NUT_X + NUT_R * 0.86, y1, 0.008, "#0b0b0b");
         c.restore();
-        cylinder(c, 3.05, y0, 3.37, y1, 0.02, "h", "black", 0.3);
-        fill(c, 3.05, y0, 3.37, y0 + 0.008, 0.004, "rgba(255,255,255,0.55)");
-        glint(c, 3.12, y0 + 0.03, 0.05, 0.55, [3.05, y0, 3.37, y1]);
+        for (let i = 0; i < N; i++) {
+          // Angle de la normale du pan, rabattu entre -π et π (0 = face au regard)
+          let a = th + i * 2 * half;
+          a = a - Math.PI * 2 * Math.floor((a + Math.PI) / (Math.PI * 2));
+          if (Math.cos(a) <= 0.01) continue;
+          const xa = NUT_X + NUT_R * Math.sin(a - half), xb = NUT_X + NUT_R * Math.sin(a + half);
+          // Laque noire : lumière diffuse venue de gauche, reflet franc quand le pan regarde la lampe
+          const d = Math.max(0, Math.cos(a + 1.0)), s = Math.max(0, Math.cos(a + 0.8)) ** 10;
+          const v = 14 + 40 * d + 120 * s;
+          // Le pan renvoie un peu de la pièce : plus clair vers la lampe, terni vers le bas
+          fill(c, xa, y0, xb, y1, 0, grad(c, xa, 0, xb, 0, [[0, gray(v * 1.15)], [0.5, gray(v)], [1, gray(v * 0.7)]]));
+          fill(c, xa, y0, xb, y1, 0, grad(c, 0, y0, 0, y1, [[0, "rgba(255,250,240,0.1)"], [0.35, "rgba(0,0,0,0)"], [1, "rgba(0,0,0,0.5)"]]));
+          // Crasse prise dans le pan : une coulure floue qui tourne avec lui
+          const gc = xa + (xb - xa) * (0.25 + 0.5 * rnd(i + 1.7 + (pin ? 9 : 0))), gw = (xb - xa) * 0.3;
+          fill(c, gc - gw, y0, gc + gw, y1, 0, grad(c, gc - gw, 0, gc + gw, 0, [[0, "rgba(34,24,14,0)"], [0.5, `rgba(34,24,14,${(0.25 + 0.3 * rnd(i + 3.3)).toFixed(2)})`], [1, "rgba(34,24,14,0)"]]));
+          // Arête de gauche du pan, usée et claire quand elle prend la lumière
+          c.fillStyle = gray(225, 0.12 + 0.45 * d);
+          c.fillRect(X(xa), Y(y0), lw, (y1 - y0) * k);
+          if (pin) {
+            const xm = NUT_X + NUT_R * Math.cos(half) * Math.sin(a), ym = (y0 + y1) / 2, rr = 0.016 * k;
+            c.beginPath(); c.ellipse(X(xm), Y(ym), rr * Math.cos(a), rr, 0, 0, Math.PI * 2);
+            c.fillStyle = gray(30 + 120 * d); c.fill();
+            c.beginPath(); c.ellipse(X(xm) - rr * 0.25 * Math.cos(a), Y(ym) - rr * 0.3, rr * 0.4 * Math.cos(a), rr * 0.35, 0, 0, Math.PI * 2);
+            c.fillStyle = gray(200, 0.25 + 0.5 * d); c.fill();
+          }
+        }
+        // Dessus de l'écrou : fil de lumière ; dessous : ombre
+        fill(c, NUT_X - NUT_R * 0.9, y0, NUT_X + NUT_R * 0.9, y0 + 0.012, 0.004, "rgba(214,208,198,0.45)");
+        fill(c, NUT_X - NUT_R * 0.9, y1 - 0.01, NUT_X + NUT_R * 0.9, y1, 0, "rgba(0,0,0,0.6)");
       }
+    }
+
+    /* --- La patine : le métal du jeu brille, mais il a vécu ---
+       Nuages de crasse, piqûres, rayures fines et voile jauni, posés seulement sur ce qui est déjà peint. */
+    const grime = (() => {
+      const w = 170, h = 104, c = document.createElement("canvas");
+      c.width = w; c.height = h;
+      const x = c.getContext("2d"), img = x.createImageData(w, h);
+      for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+        let n = 0, a = 0.55, f = 1;
+        for (let o = 0; o < 4; o++) { n += a * noise((i / w) * 9 * f, (j / h) * 6 * f, 1e4, o + 21); a *= 0.5; f *= 2; }
+        // Coulures : la crasse s'étire un peu vers le bas
+        n += 0.12 * noise(i * 0.35, j * 0.03, 1e4, 29);
+        const q = (j * w + i) * 4, u = smooth(0.5, 0.9, n);
+        img.data[q] = 34; img.data[q + 1] = 24; img.data[q + 2] = 14; img.data[q + 3] = 150 * u;
+      }
+      x.putImageData(img, 0, 0);
+      return c;
+    })();
+    function patina(c) {
+      c.save();
+      c.globalCompositeOperation = "source-atop";
+      c.imageSmoothingEnabled = true;
+      c.drawImage(grime, X(0), Y(0), DEV_W * k, DEV_H * k);
+      c.fillStyle = "rgba(96,74,44,0.09)";
+      c.fillRect(X(0), Y(0), DEV_W * k, DEV_H * k);
+      const dot = Math.max(0.8, k * 0.006);
+      for (let i = 0; i < 900; i++) {
+        const light = rnd(i + 0.41) > 0.8, r = dot * (0.6 + rnd(i + 0.93));
+        c.fillStyle = light ? `rgba(255,246,230,${(0.12 + 0.2 * rnd(i + 0.2)).toFixed(2)})` : `rgba(22,15,9,${(0.2 + 0.35 * rnd(i + 0.2)).toFixed(2)})`;
+        c.fillRect(X(rnd(i + 0.11) * DEV_W), Y(rnd(i + 0.57) * DEV_H), r, r);
+      }
+      c.lineWidth = Math.max(0.5, k * 0.0025);
+      for (let i = 0; i < 160; i++) {
+        const x0 = rnd(i + 7.1) * DEV_W, y0 = rnd(i + 7.9) * DEV_H, len = 0.03 + 0.18 * rnd(i + 8.3);
+        const ang = (rnd(i + 8.8) - 0.5) * (rnd(i + 9.4) > 0.6 ? 3 : 0.5);
+        c.strokeStyle = rnd(i + 9.9) > 0.5 ? `rgba(255,250,240,${(0.08 + 0.12 * rnd(i + 10.3)).toFixed(2)})` : `rgba(0,0,0,${(0.12 + 0.18 * rnd(i + 10.3)).toFixed(2)})`;
+        c.beginPath(); c.moveTo(X(x0), Y(y0)); c.lineTo(X(x0 + Math.cos(ang) * len), Y(y0 + Math.sin(ang) * len)); c.stroke();
+      }
+      c.restore();
     }
 
     function drawChassis() {
@@ -809,6 +884,7 @@
       glint(c, PIV.x - 0.06, PIV.y - 0.09, 0.04, 0.6, [PIV.x, PIV.y, 0.15]);
 
       drawHandle(c);
+      patina(c);
     }
 
     // La plaque d'état est un vrai texte posé sur le dessin : on lui donne la place de la fenêtre
@@ -833,10 +909,10 @@
       const a = s * Math.min(l, 1 - l), f = (n) => { const q = (n + h / 30) % 12; return 255 * (l - a * Math.max(-1, Math.min(q - 3, 9 - q, 1))); };
       return [f(0), f(8), f(4)];
     }
-    // Teintes sombre et claire du liquide ; en Ok on retombe exactement sur le vert olive du jeu
+    // Teintes sombre et claire du liquide : une encre épaisse, un peu plus sombre que le trait
     function vialInk(p) {
       const h = Math.min(100, hueAt(p)), s = smooth(0.3, 0.6, p);
-      return [rgb(h + 3, 0.27 + 0.2 * s, 0.16), rgb(h, 0.66 + 0.14 * s, 0.66 - 0.04 * s)];
+      return [rgb(h + 3, 0.3 + 0.2 * s, 0.085), rgb(h, 0.42 + 0.16 * s, 0.4 - 0.04 * s)];
     }
     function vialFrame(time, p) {
       const d = vimg.data, [lo, hi] = vialInk(p);
@@ -965,6 +1041,7 @@
       vialClock += dt;
       if (vialClock > 1 / 30) { vialFrame(t, p); vialClock = 0; }
       drawVial(hctx);
+      drawNuts(hctx);
       drawPen(pts.length ? pts[pts.length - 1] : { x: PIV.x + ARM, y: PIV.y });
     }
 
@@ -992,6 +1069,39 @@
       if (pos >= hintText[part].length) { part++; pos = 0; }
     }, 34);
   }
+
+  // Crasse des pièces de l'interface de la version 2 (rouleau, médaillons, barre, cadres) :
+  // une petite texture qui se répète, avec taches, piqûres et rayures, donnée au CSS par --crasse
+  (() => {
+    const n = 128, c = document.createElement("canvas");
+    c.width = n; c.height = n;
+    const x = c.getContext("2d"), img = x.createImageData(n, n);
+    const r = (i) => { const s = Math.sin(i * 91.7 + 47.3) * 43758.5453; return s - Math.floor(s); };
+    const val = (i, j, p) => r(((i % p) + p) % p * 31.1 + (((j % p) + p) % p) * 7.7 + p);
+    const vn = (u, v, p) => {
+      const i = Math.floor(u), j = Math.floor(v), fu = u - i, fv = v - j, a = fu * fu * (3 - 2 * fu), b = fv * fv * (3 - 2 * fv);
+      const top = val(i, j, p) + (val(i + 1, j, p) - val(i, j, p)) * a, bot = val(i, j + 1, p) + (val(i + 1, j + 1, p) - val(i, j + 1, p)) * a;
+      return top + (bot - top) * b;
+    };
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+      const u = i / n, v = j / n;
+      const f = 0.55 * vn(u * 4, v * 4, 4) + 0.28 * vn(u * 8, v * 8, 8) + 0.17 * vn(u * 16, v * 16, 16);
+      const q = (j * n + i) * 4, a = smooth(0.48, 0.85, f);
+      img.data[q] = 30; img.data[q + 1] = 21; img.data[q + 2] = 12; img.data[q + 3] = 175 * a;
+    }
+    x.putImageData(img, 0, 0);
+    for (let i = 0; i < 260; i++) {
+      x.fillStyle = r(i + 0.5) > 0.78 ? `rgba(255,244,226,${0.15 + 0.2 * r(i + 0.9)})` : `rgba(18,12,7,${0.25 + 0.4 * r(i + 0.9)})`;
+      x.fillRect(Math.floor(r(i + 0.1) * n), Math.floor(r(i + 0.3) * n), 1, 1);
+    }
+    x.lineWidth = 0.6;
+    for (let i = 0; i < 26; i++) {
+      const x0 = r(i + 5.1) * n, y0 = r(i + 5.7) * n, len = 6 + 22 * r(i + 6.2), ang = (r(i + 6.9) - 0.5) * 1.2;
+      x.strokeStyle = r(i + 7.3) > 0.5 ? "rgba(255,248,236,0.22)" : "rgba(0,0,0,0.35)";
+      x.beginPath(); x.moveTo(x0, y0); x.lineTo(x0 + Math.cos(ang) * len, y0 + Math.sin(ang) * len); x.stroke();
+    }
+    document.documentElement.style.setProperty("--crasse", `url(${c.toDataURL()})`);
+  })();
 
   const views = { moniteur: monitor, remake: recorder };
   let view = monitor;

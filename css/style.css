@@ -227,6 +227,8 @@ main { max-width: min(920px, calc((100vh - 190px) * 2.5 + 24px)); }
   --salmon: #eba58c;
   --silver: #a8a7a2;
   --copper: #f0d2b0;
+  /* Crasse des pièces (taches, piqûres, rayures) : la texture est fabriquée par app.js, rien tant qu'elle manque */
+  --crasse: linear-gradient(transparent, transparent);
 }
 .theme-remake body, .theme-remake.focus body { background: #000; }
 .theme-remake main { gap: 16px; }
@@ -267,8 +269,9 @@ main { max-width: min(920px, calc((100vh - 190px) * 2.5 + 24px)); }
   border: 3px solid transparent;
   background:
     linear-gradient(#030303, #030303) padding-box,
-    linear-gradient(100deg, #ffffff 0%, #a19d96 7%, #3b3835 15%, #8f8b84 27%, #ffffff 33%, #e9e6e0 37%, #77736d 46%,
-      #2a2826 58%, #6b6761 70%, #f4f2ee 78%, #ffffff 81%, #8c8882 88%, #3a3734 95%, #cfcbc4 100%) border-box;
+    var(--crasse) 0 0 / 128px 48px border-box,
+    linear-gradient(100deg, #f4efe5 0%, #a19d96 7%, #3b3835 15%, #8f8b84 27%, #f7f2e8 33%, #e2ddd3 37%, #77736d 46%,
+      #2a2826 58%, #6b6761 70%, #ece8e0 78%, #f7f2e8 81%, #8c8882 88%, #3a3734 95%, #c6c1b8 100%) border-box;
   box-shadow: 0 0 0 1px #000, 0 2px 6px rgba(0, 0, 0, 0.9), inset 0 0 0 1px #000, inset 0 0 14px rgba(0, 0, 0, 0.9);
   transition: opacity 0.5s;
 }
@@ -288,6 +291,7 @@ main { max-width: min(920px, calc((100vh - 190px) * 2.5 + 24px)); }
   padding: 7px 20px 7px 8px;
   border-radius: 30px;
   background:
+    var(--crasse) 0 0 / 160px 40px,
     linear-gradient(180deg, rgba(255, 255, 255, 0) 55%, rgba(255, 255, 255, 0.07) 80%, rgba(255, 255, 255, 0) 100%),
     linear-gradient(180deg, #6d6b67 0, #262523 4%, #0c0c0c 30%, #050505 60%, #1e1d1c 88%, #4a4845 97%, #0a0a0a 100%);
   box-shadow: 0 0 0 1px #000, inset 0 1px 0 rgba(255, 255, 255, 0.6), inset 0 -1px 0 rgba(255, 255, 255, 0.2), 0 5px 12px rgba(0, 0, 0, 0.85);
@@ -307,6 +311,7 @@ main { max-width: min(920px, calc((100vh - 190px) * 2.5 + 24px)); }
   display: grid; place-items: center; flex: none;
   width: 46px; height: 46px; border-radius: 50%;
   background:
+    var(--crasse) center / 64px 64px,
     radial-gradient(circle, #16120d 0 41%, #3a2c1d 41.5% 42.5%, rgba(0, 0, 0, 0) 43.5%),
     radial-gradient(circle, rgba(0, 0, 0, 0) 0 43.5%, rgba(0, 0, 0, 0.55) 44% 46%, rgba(0, 0, 0, 0) 47%),
     conic-gradient(from 200deg, #3a2c1d, #fff6df 22deg, #e2c793 40deg, #5e4730 75deg, #1b140c 115deg, #4a3a27 160deg,
@@ -329,7 +334,7 @@ main { max-width: min(920px, calc((100vh - 190px) * 2.5 + 24px)); }
   position: relative;
   width: 38px; height: 38px;
   border: 0; border-radius: 0;
-  background: linear-gradient(160deg, #34342f 0%, #232321 45%, #1a1a18 100%);
+  background: var(--crasse) 0 0 / 96px 96px, linear-gradient(160deg, #34342f 0%, #232321 45%, #1a1a18 100%);
   box-shadow: inset 0 0 0 1px #3d3d3a, inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 0 10px rgba(0, 0, 0, 0.75);
 }
 .theme-remake .dot.done {
@@ -363,6 +368,7 @@ main { max-width: min(920px, calc((100vh - 190px) * 2.5 + 24px)); }
   border-radius: 2px;
   background:
     linear-gradient(#000, #000) padding-box,
+    var(--crasse) 0 0 / 128px 128px border-box,
     linear-gradient(180deg, #9d9993 0%, #3a3835 12%, #181716 45%, #55524e 75%, #1b1a19 100%) border-box;
   box-shadow: 0 0 0 1px #000, 0 6px 14px rgba(0, 0, 0, 0.8);
   font-family: var(--gill);
@@ -384,12 +390,15 @@ main { max-width: min(920px, calc((100vh - 190px) * 2.5 + 24px)); }
 .theme-remake .hint::before {
   left: 24px; right: 24px; border-radius: 3px;
   background:
+    var(--crasse) 0 0 / 150px 26px,
     repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.35) 0 1px, rgba(255, 255, 255, 0.07) 1px 2px, rgba(0, 0, 0, 0) 2px 3px) left bottom / 100% 58% no-repeat,
-    linear-gradient(180deg, #050505 0%, #3d3d3c 7%, #d6d6d3 16%, #ffffff 24%, #f4f4f1 33%, #a3a3a0 39%, #2e2e2d 47%, #1b1b1a 70%, #3f3f3d 86%, #0a0a0a 100%);
+    linear-gradient(180deg, #050505 0%, #3d3d3c 7%, #d2d0ca 16%, #f8f4ea 24%, #ebe7dd 33%, #a3a3a0 39%, #2e2e2d 47%, #1b1b1a 70%, #3f3f3d 86%, #0a0a0a 100%);
   box-shadow: 0 3px 6px rgba(0, 0, 0, 0.9);
 }
 .theme-remake .hint::after {
   background:
+    var(--crasse) left / 18px 26px no-repeat,
+    var(--crasse) right / 18px 26px no-repeat,
     linear-gradient(90deg, rgba(0, 0, 0, 0.6) 0 1px, rgba(0, 0, 0, 0) 1px calc(100% - 1px), rgba(0, 0, 0, 0.6) calc(100% - 1px)) left / 18px 100% no-repeat,
     linear-gradient(90deg, rgba(0, 0, 0, 0.6) 0 1px, rgba(0, 0, 0, 0) 1px calc(100% - 1px), rgba(0, 0, 0, 0.6) calc(100% - 1px)) right / 18px 100% no-repeat,
     linear-gradient(180deg, #2c1611, #8a5546 10%, #f2c6b0 22%, #fff0e6 30%, #d79a83 40%, #8a5444 60%, #5a3328 80%, #24120d) left / 18px 100% no-repeat,
