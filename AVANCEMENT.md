@@ -13,6 +13,8 @@ Version 3 de l'écran : l'écran d'état de Resident Evil Zero (HD), d'après le
 - Un passage par seconde, un seul battement, toujours au même endroit (pic principal à 0,368 de la largeur).
 - Tête : 1,26 largeur/s jusqu'à 0,47, ralentit à 0,88 vers 0,55, arrive au bord à 0,96 s, attend, repart.
 - Extinction : environ 0,9·(1 − âge/0,6)^1,1, chaque point à son rythme, même quand la tête est repartie (le bout droit s'éteint en 0,4 à 0,5 s après le retour à gauche), puis reflet très pâle (≈ 5 %).
+- Formes : relevées colonne par colonne (milieu du trait) sur chaque passage, puis moyennées ; OK pris sur le passage le plus net. Stockées en millièmes de 0,17 à 0,70 tous les 0,005 (v15). Pic principal vers 0,36, creux vers 0,415.
+- Épaisseur du trait dans le jeu : environ 0,04 de la hauteur de la vitre à mi-intensité.
 - Les lignes vertes et « État » restent vertes dans tous les états.
 - Couleurs (trait / mot) : OK sarcelle (22,135,102) / (80,148,100), jaune (172,182,58) / (178,186,78), orange (165,135,60) / (168,136,72), Danger (163,33,60) / (175,52,77).
 
