@@ -1104,14 +1104,15 @@
      Relevé image par image sur trois enregistrements du jeu : un petit écran cathodique gris, encastré
      dans un panneau de métal peint crème. Le trait part de la gauche, dessine un seul battement (une onde
      qui s'amortit) et traverse la vitre en une seconde, vite jusqu'au milieu puis plus lentement.
-     Derrière lui il s'éteint en 0,75 s environ, et n'en reste qu'un reflet très pâle jusqu'au passage suivant.
+     Derrière lui il s'éteint en 0,6 s environ, à son rythme, même quand la tête est déjà repartie à gauche ;
+     il n'en reste qu'un reflet très pâle jusqu'au passage suivant.
      Le rythme ne change jamais (60 par minute) : seules la forme et la couleur suivent l'état.
      Cotes en « s », la hauteur de la vitre. */
   const zero = (() => {
     const GW = 2.39, G = { x: 0.2, y: 0.21 };            // vitre et son coin haut gauche
     const DEV_W = GW + 0.4, DEV_H = 1.45;
     const TOP = 0.173, BOT = 0.905, BASE = 0.558, L = BOT - TOP;
-    const PEAK = 0.368, GHOST = 0.08;
+    const PEAK = 0.368, GHOST = 0.05;
     // La tête : 1,26 largeur par seconde jusqu'à 0,47, ralentit à 0,88 vers 0,55, puis attend au bord
     const V1 = 1.26, V2 = 0.88, U1 = 0.47, U2 = 0.55;
     const T1 = U1 / V1, T2 = (U2 - U1) / ((V1 + V2) / 2);
@@ -1167,7 +1168,7 @@
       const ya = a[n] + (a[n + 1] - a[n]) * f, yb = b[n] + (b[n + 1] - b[n]) * f;
       return ya + (yb - ya) * w;
     }
-    const glowAt = (age) => Math.max(GHOST, 0.85 * Math.max(0, 1 - age / 0.75) + 0.15 * Math.max(0, 1 - age / 0.04));
+    const glowAt = (age) => Math.max(GHOST, 0.9 * Math.max(0, 1 - age / 0.6) ** 1.1 + 0.1 * Math.max(0, 1 - age / 0.04));
 
     let k = 1, ox = 0, oy = 0;
     let clock = 0, sweep = 0, cur = [], prev = [];
@@ -1345,7 +1346,10 @@
       const step = Math.max(1, Math.floor(cur.length / 48));
       for (let i = 0; i < cur.length; i += step) stop(cur[i].u, glowAt(clock - cur[i].t));
       if (cur.length) stop(head, glowAt(0));
-      stop(head + 0.004, GHOST); stop(1, GHOST);
+      // Devant la tête, le passage d'avant n'est pas effacé d'un coup : il finit de s'éteindre à son rythme
+      const pstep = Math.max(1, Math.floor(ahead.length / 48));
+      for (let i = 0; i < ahead.length; i += pstep) stop(ahead[i].u, glowAt(clock - ahead[i].t));
+      stop(1, ahead.length ? glowAt(clock - ahead[ahead.length - 1].t) : GHOST);
       bctx.globalCompositeOperation = "destination-in";
       bctx.fillStyle = grad;
       bctx.fillRect(0, 0, W, H);
