@@ -1100,6 +1100,276 @@
     return { resize, enter, frame };
   })();
 
+  /* ----- Version 3 : l'écran d'état de Resident Evil Zero -----
+     Relevé image par image sur trois enregistrements du jeu : un petit écran cathodique gris, encastré
+     dans un panneau de métal peint crème. Le trait part de la gauche, dessine un seul battement (une onde
+     qui s'amortit) et traverse la vitre en une seconde, vite jusqu'au milieu puis plus lentement.
+     Derrière lui il s'éteint en 0,75 s environ, et n'en reste qu'un reflet très pâle jusqu'au passage suivant.
+     Le rythme ne change jamais (60 par minute) : seules la forme et la couleur suivent l'état.
+     Cotes en « s », la hauteur de la vitre. */
+  const zero = (() => {
+    const GW = 2.39, G = { x: 0.2, y: 0.21 };            // vitre et son coin haut gauche
+    const DEV_W = GW + 0.4, DEV_H = 1.45;
+    const TOP = 0.173, BOT = 0.905, BASE = 0.558, L = BOT - TOP;
+    const PEAK = 0.368, GHOST = 0.08;
+    // La tête : 1,26 largeur par seconde jusqu'à 0,47, ralentit à 0,88 vers 0,55, puis attend au bord
+    const V1 = 1.26, V2 = 0.88, U1 = 0.47, U2 = 0.55;
+    const T1 = U1 / V1, T2 = (U2 - U1) / ((V1 + V2) / 2);
+    function headU(s) {
+      if (s < T1) return V1 * s;
+      s -= T1;
+      if (s < T2) return U1 + V1 * s - ((V1 - V2) / (2 * T2)) * s * s;
+      return Math.min(1, U2 + V2 * (s - T2));
+    }
+    // Les quatre formes du jeu : position dans la largeur de la vitre, hauteur en écart entre les lignes vertes
+    const SHAPES = {
+      ok: [[0, 0], [0.2, 0], [0.225, 0.005], [0.255, 0.06], [0.27, 0.065], [0.285, 0.02], [0.3, -0.06], [0.315, -0.11],
+        [0.33, -0.05], [0.345, 0.15], [0.368, 0.32], [0.385, 0.25], [0.4, -0.05], [0.42, -0.33], [0.44, -0.2], [0.455, 0],
+        [0.47, 0.115], [0.49, 0.05], [0.505, -0.03], [0.52, -0.09], [0.54, -0.02], [0.56, 0.1], [0.58, 0.03], [0.6, -0.05],
+        [0.62, -0.03], [0.645, 0], [1, 0]],
+      jaune: [[0, 0], [0.22, 0], [0.26, 0.05], [0.285, 0.02], [0.3, -0.04], [0.315, -0.1], [0.33, -0.04], [0.345, 0.12],
+        [0.363, 0.275], [0.38, 0.22], [0.395, 0.08], [0.41, -0.07], [0.43, -0.215], [0.445, -0.1], [0.46, 0.05], [0.47, 0.107],
+        [0.49, 0.04], [0.505, 0], [0.53, 0.04], [0.552, 0.09], [0.57, 0.03], [0.6, 0], [1, 0]],
+      orange: [[0, 0], [0.21, 0], [0.235, -0.015], [0.255, -0.045], [0.28, -0.03], [0.3, 0], [0.32, 0.033], [0.34, 0.03],
+        [0.352, 0.03], [0.365, 0.12], [0.38, 0.195], [0.395, 0.12], [0.41, -0.03], [0.425, -0.1], [0.44, -0.115], [0.455, -0.08],
+        [0.475, 0], [0.495, 0.07], [0.51, 0.04], [0.53, -0.03], [0.545, -0.06], [0.56, -0.04], [0.58, 0], [0.6, 0.02], [0.64, 0], [1, 0]],
+      danger: [[0, 0], [0.2, 0], [0.215, 0.01], [0.25, 0.035], [0.27, 0.04], [0.285, 0.01], [0.3, -0.015], [0.32, -0.072],
+        [0.335, -0.05], [0.345, 0.03], [0.36, 0.13], [0.372, 0.155], [0.385, 0.11], [0.4, 0.04], [0.415, -0.02], [0.43, -0.05],
+        [0.445, -0.03], [0.46, 0.02], [0.48, 0.06], [0.5, 0.045], [0.52, 0.02], [0.54, -0.015], [0.555, -0.035], [0.575, -0.015],
+        [0.595, 0], [1, 0]],
+    };
+    // Chaque forme est échantillonnée finement, en courbe lisse passant par les points relevés
+    const N = 800;
+    function sample(pts) {
+      const out = new Float32Array(N + 1);
+      const tan = pts.map((q, i) => i === 0 || i === pts.length - 1 ? 0 : (pts[i + 1][1] - pts[i - 1][1]) / (pts[i + 1][0] - pts[i - 1][0]));
+      for (let n = 0, i = 1; n <= N; n++) {
+        const u = n / N;
+        while (i < pts.length - 1 && pts[i][0] < u) i++;
+        const [u0, y0] = pts[i - 1], [u1, y1] = pts[i], h = u1 - u0, s = (u - u0) / h;
+        const h00 = 2 * s ** 3 - 3 * s * s + 1, h10 = s ** 3 - 2 * s * s + s, h01 = -2 * s ** 3 + 3 * s * s, h11 = s ** 3 - s * s;
+        out[n] = h00 * y0 + h10 * h * tan[i - 1] + h01 * y1 + h11 * h * tan[i];
+      }
+      return out;
+    }
+    const S = Object.fromEntries(Object.entries(SHAPES).map(([n, pts]) => [n, sample(pts)]));
+    // Même passage que les encres : OK jusqu'à 0,3, Attention jaune vers 0,5, orange vers 0,68, Danger après 0,86
+    const STEPS = [[0, S.ok], [0.3, S.ok], [0.5, S.jaune], [0.68, S.orange], [0.86, S.danger], [1, S.danger]];
+    const INK0 = {
+      trace: [[0, [22, 135, 102]], [0.3, [22, 135, 102]], [0.5, [172, 182, 58]], [0.68, [165, 135, 60]], [0.86, [163, 33, 60]], [1, [163, 33, 60]]],
+      word: [[0, [80, 148, 100]], [0.3, [80, 148, 100]], [0.5, [178, 186, 78]], [0.68, [168, 136, 72]], [0.86, [175, 52, 77]], [1, [175, 52, 77]]],
+    };
+    function shapeAt(u, p) {
+      let i = 1;
+      while (i < STEPS.length - 1 && p > STEPS[i][0]) i++;
+      const w = smooth(STEPS[i - 1][0], STEPS[i][0], p), a = STEPS[i - 1][1], b = STEPS[i][1];
+      const q = Math.max(0, Math.min(1, u)) * N, n = Math.min(N - 1, Math.floor(q)), f = q - n;
+      const ya = a[n] + (a[n + 1] - a[n]) * f, yb = b[n] + (b[n + 1] - b[n]) * f;
+      return ya + (yb - ya) * w;
+    }
+    const glowAt = (age) => Math.max(GHOST, 0.85 * Math.max(0, 1 - age / 0.75) + 0.15 * Math.max(0, 1 - age / 0.04));
+
+    let k = 1, ox = 0, oy = 0;
+    let clock = 0, sweep = 0, cur = [], prev = [];
+    const X = (u) => ox + u * k, Y = (v) => oy + v * k;
+    const gx = (u) => X(G.x + u * GW), gy = (v) => Y(G.y + BASE - v * L);
+    const bufC = document.createElement("canvas"), bctx = bufC.getContext("2d");
+    const font = (px) => `400 ${px}px "Avenir Next", Avenir, "Segoe UI", "Helvetica Neue", sans-serif`;
+
+    // Hasard reproductible et bruit périodique, pour le grain de la peinture
+    const rnd = (i) => { const s = Math.sin(i * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+    function vn(x, y, per, s) {
+      const i = Math.floor(x), j = Math.floor(y), fx = x - i, fy = y - j;
+      const u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
+      const m = (a) => ((a % per) + per) % per;
+      const h = (a, b) => rnd(m(a) * 57.31 + m(b) * 131.7 + s * 17.13);
+      const a = h(i, j), b = h(i + 1, j), c = h(i, j + 1), d = h(i + 1, j + 1);
+      return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+    }
+    /* La peinture crème du panneau : grain serré de métal martelé, piqûres sombres, éclats plus clairs.
+       Le même carreau habille les pièces de l'interface (--creme). */
+    const grainC = (() => {
+      const n = 160, c = document.createElement("canvas");
+      c.width = n; c.height = n;
+      const x = c.getContext("2d"), img = x.createImageData(n, n);
+      for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+        const u = i / n, v = j / n;
+        const f = 0.5 * vn(u * 6, v * 6, 6, 1) + 0.3 * vn(u * 16, v * 16, 16, 2) + 0.2 * vn(u * 40, v * 40, 40, 3);
+        const g = rnd(i * 1.13 + j * 91.7);
+        let l = 0.95 + 0.26 * (f - 0.5) + 0.14 * (g - 0.5);
+        let r = 200 * l, gg = 194 * l, b = 180 * l;
+        if (g > 0.975) { const d = 0.45 + 0.3 * rnd(i + j * 3.3); r *= d; gg *= d * 0.95; b *= d * 0.88; }
+        else if (g < 0.02) { r = 236; gg = 232; b = 222; }
+        const q = (j * n + i) * 4;
+        img.data[q] = r; img.data[q + 1] = gg; img.data[q + 2] = b; img.data[q + 3] = 255;
+      }
+      x.putImageData(img, 0, 0);
+      return c;
+    })();
+    document.documentElement.style.setProperty("--creme", `url(${grainC.toDataURL()})`);
+    // Rouille et crasse à grande échelle, étirées sur tout le panneau
+    const dirtC = (() => {
+      const w = 140, h = 74, c = document.createElement("canvas");
+      c.width = w; c.height = h;
+      const x = c.getContext("2d"), img = x.createImageData(w, h);
+      for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+        const f = 0.55 * vn(i / 14, j / 14, 99, 7) + 0.3 * vn(i / 6, j / 6, 99, 8) + 0.15 * vn(i / 2.5, j / 2.5, 99, 9);
+        const a = smooth(0.5, 0.82, f), q = (j * w + i) * 4;
+        img.data[q] = 74; img.data[q + 1] = 56; img.data[q + 2] = 38; img.data[q + 3] = 150 * a;
+      }
+      x.putImageData(img, 0, 0);
+      return c;
+    })();
+
+    function rrect(c, x0, y0, x1, y1, rt, rb = rt) {
+      c.beginPath();
+      c.moveTo(X(x0 + rt), Y(y0));
+      c.arcTo(X(x1), Y(y0), X(x1), Y(y1), rt * k);
+      c.arcTo(X(x1), Y(y1), X(x0), Y(y1), rb * k);
+      c.arcTo(X(x0), Y(y1), X(x0), Y(y0), rb * k);
+      c.arcTo(X(x0), Y(y0), X(x1), Y(y0), rt * k);
+      c.closePath();
+    }
+    function lin(c, x0, y0, x1, y1, stops) {
+      const gr = c.createLinearGradient(X(x0), Y(y0), X(x1), Y(y1));
+      for (const [o, col] of stops) gr.addColorStop(o, col);
+      return gr;
+    }
+    // La vitre : coins hauts presque droits, coins bas bien arrondis, comme un tube cathodique
+    const glass = (c) => rrect(c, G.x, G.y, G.x + GW, G.y + 1, 0.05, 0.14);
+
+    function drawPanel() {
+      const c = gctx, hx0 = G.x - 0.045, hy0 = G.y - 0.06, hx1 = G.x + GW + 0.045, hy1 = G.y + 1.04;
+      c.clearRect(0, 0, W, H);
+      // Panneau de métal peint, éclairé d'en haut, sale et piqué
+      c.save();
+      rrect(c, 0, 0, DEV_W, DEV_H - 0.09, 0.03);
+      c.clip();
+      const pat = c.createPattern(grainC, "repeat");
+      pat.setTransform(new DOMMatrix().scale(Math.max(0.5, 0.008 * k)));
+      c.fillStyle = pat;
+      c.fillRect(X(0), Y(0), DEV_W * k, DEV_H * k);
+      c.imageSmoothingEnabled = true;
+      c.drawImage(dirtC, X(0), Y(0), DEV_W * k, DEV_H * k);
+      c.fillStyle = lin(c, 0, 0, 0, DEV_H, [[0, "rgba(255,250,240,0.1)"], [0.4, "rgba(0,0,0,0)"], [1, "rgba(20,14,8,0.32)"]]);
+      c.fillRect(X(0), Y(0), DEV_W * k, DEV_H * k);
+      // Bords du panneau : arête claire en haut, ombre en bas
+      c.fillStyle = "rgba(255,252,244,0.55)"; c.fillRect(X(0), Y(0), DEV_W * k, Math.max(1, 0.012 * k));
+      c.fillStyle = "rgba(0,0,0,0.5)"; c.fillRect(X(0), Y(DEV_H - 0.09) - Math.max(1, 0.014 * k), DEV_W * k, Math.max(1, 0.014 * k));
+      // Le logement de l'écran est creusé : ombre portée sur le flanc gauche et sous la lèvre du haut, chant éclairé dessous
+      rrect(c, hx0 - 0.05, hy0 - 0.035, hx1 + 0.03, hy1 + 0.03, 0.07);
+      c.fillStyle = lin(c, hx0 - 0.05, 0, hx1 + 0.03, 0, [[0, "rgba(30,24,16,0.55)"], [0.04, "rgba(30,24,16,0.25)"], [0.12, "rgba(30,24,16,0.08)"], [0.97, "rgba(30,24,16,0.12)"], [1, "rgba(30,24,16,0.4)"]]);
+      c.fill();
+      c.restore();
+      rrect(c, hx0 - 0.012, hy1 - 0.02, hx1 + 0.012, hy1 + 0.022, 0.03);
+      c.fillStyle = lin(c, 0, hy1 - 0.02, 0, hy1 + 0.022, [[0, "rgba(0,0,0,0)"], [0.45, "rgba(250,248,240,0.9)"], [0.7, "rgba(170,164,150,0.6)"], [1, "rgba(0,0,0,0)"]]);
+      c.fill();
+      // Rail sombre sous le panneau, avec son filet de lumière
+      c.fillStyle = "#0d0c0b"; c.fillRect(X(0), Y(DEV_H - 0.09), DEV_W * k, 0.09 * k);
+      c.fillStyle = lin(c, 0, DEV_H - 0.05, 0, DEV_H - 0.03, [[0, "rgba(160,158,150,0)"], [0.5, "rgba(186,183,175,0.75)"], [1, "rgba(160,158,150,0)"]]);
+      c.fillRect(X(0.02), Y(DEV_H - 0.05), (DEV_W - 0.04) * k, 0.02 * k);
+      // Boîtier noir du tube
+      rrect(c, hx0, hy0, hx1, hy1, 0.07);
+      c.fillStyle = lin(c, 0, hy0, 0, hy1, [[0, "#0a0a09"], [0.5, "#181816"], [1, "#22211f"]]);
+      c.fill();
+      // La vitre : sombre sous la lèvre du haut, plus claire vers le tiers haut, assombrie vers le bas et sur les bords
+      glass(c);
+      c.fillStyle = lin(c, 0, G.y, 0, G.y + 1, [[0, "#10120e"], [0.05, "#1d1f1b"], [0.11, "#3c3d3b"], [0.18, "#3f403f"], [0.3, "#3a3c3b"],
+        [0.55, "#333635"], [0.75, "#2d302f"], [0.9, "#262827"], [1, "#1e1f1e"]]);
+      c.fill();
+      c.save();
+      glass(c); c.clip();
+      c.fillStyle = lin(c, G.x, 0, G.x + GW, 0, [[0, "rgba(0,0,0,0.6)"], [0.012, "rgba(0,0,0,0.35)"], [0.05, "rgba(0,0,0,0.1)"], [0.4, "rgba(0,0,0,0)"],
+        [0.85, "rgba(0,0,0,0.12)"], [0.97, "rgba(0,0,0,0.3)"], [1, "rgba(0,0,0,0.55)"]]);
+      c.fillRect(X(G.x), Y(G.y), GW * k, k);
+      // Reflet du verre bombé et liseré clair sur les flancs
+      c.fillStyle = lin(c, 0, G.y + 0.08, 0, G.y + 0.42, [[0, "rgba(220,226,224,0)"], [0.35, "rgba(220,226,224,0.05)"], [1, "rgba(220,226,224,0)"]]);
+      c.fillRect(X(G.x), Y(G.y + 0.08), GW * k, 0.34 * k);
+      c.restore();
+      c.lineWidth = Math.max(1, 0.008 * k);
+      c.strokeStyle = "rgba(170,176,172,0.07)";
+      glass(c); c.stroke();
+      // Les deux lignes vertes, et « État » posé sur celle du haut
+      const lw = Math.max(1, 0.014 * k);
+      c.fillStyle = "rgba(78,158,116,0.62)";
+      c.fillRect(gx(0.03), Y(G.y + TOP) - lw / 2, (0.955 * GW) * k, lw);
+      c.fillStyle = "rgba(70,150,104,0.6)";
+      c.fillRect(gx(0.03), Y(G.y + BOT) - lw / 2, (0.955 * GW) * k, lw);
+      c.font = font(0.1 * k);
+      c.textBaseline = "alphabetic";
+      c.fillStyle = "rgba(96,160,124,0.4)";
+      c.fillText("État", gx(0.046), Y(G.y + TOP - 0.012));
+    }
+
+    function resize() {
+      k = Math.min(W / DEV_W, H / DEV_H);
+      ox = (W - DEV_W * k) / 2; oy = (H - DEV_H * k) / 2;
+      bufC.width = Math.round(W * dpr); bufC.height = Math.round(H * dpr);
+      bctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      drawPanel();
+    }
+    function enter() { clock = 0; sweep = 0; cur = []; prev = []; }
+
+    function path(c, pts) {
+      c.beginPath();
+      pts.forEach((q, i) => (i ? c.lineTo(gx(q.u), gy(q.y)) : c.moveTo(gx(q.u), gy(q.y))));
+    }
+
+    function frame(dt, p) {
+      // La tête avance par petits pas ; un passage dure une seconde
+      const n = Math.max(1, Math.ceil(dt * 240));
+      for (let i = 1; i <= n; i++) {
+        const before = headU(sweep);
+        sweep += dt / n; clock += dt / n;
+        if (sweep >= 1) { sweep -= 1; prev = cur; cur = []; }
+        const u = headU(sweep);
+        if (before < PEAK && u >= PEAK) onBeat(p);
+        if (!cur.length || u > cur[cur.length - 1].u) cur.push({ u, y: shapeAt(u, p), t: clock });
+      }
+      const head = cur.length ? cur[cur.length - 1].u : 0;
+      const ink = ramp(INK0.trace, p);
+
+      // Le tracé entier, opaque, dans un tampon : le reflet du passage d'avant devant la tête, puis le passage en cours
+      bctx.clearRect(0, 0, W, H);
+      bctx.lineJoin = "round"; bctx.lineCap = "round";
+      const ahead = prev.filter((q) => q.u > head + 0.006);
+      for (const [w, a] of [[0.055, 0.22], [0.022, 1]]) {
+        bctx.lineWidth = w * k;
+        bctx.strokeStyle = rgba(ink, a);
+        if (ahead.length > 1) { path(bctx, ahead); bctx.stroke(); }
+        if (cur.length > 1) { path(bctx, cur); bctx.stroke(); }
+      }
+      // Puis la rémanence : chaque point pâlit selon le temps écoulé depuis le passage de la tête
+      const grad = bctx.createLinearGradient(gx(0), 0, gx(1), 0);
+      const stop = (u, a) => grad.addColorStop(Math.max(0, Math.min(1, u)), `rgba(0,0,0,${a.toFixed(3)})`);
+      const step = Math.max(1, Math.floor(cur.length / 48));
+      for (let i = 0; i < cur.length; i += step) stop(cur[i].u, glowAt(clock - cur[i].t));
+      if (cur.length) stop(head, glowAt(0));
+      stop(head + 0.004, GHOST); stop(1, GHOST);
+      bctx.globalCompositeOperation = "destination-in";
+      bctx.fillStyle = grad;
+      bctx.fillRect(0, 0, W, H);
+      bctx.globalCompositeOperation = "source-over";
+
+      tctx.clearRect(0, 0, W, H);
+      tctx.save();
+      glass(tctx); tctx.clip();
+      tctx.drawImage(bufC, 0, 0, W, H);
+      // Le mot d'état, en bas à droite de la vitre ; il clignote quand le temps est dépassé
+      const blink = document.documentElement.classList.contains("overtime") && !reduceMotion && Date.now() % 900 >= 450;
+      const word = wordFor(p) === "Ok" ? "OK" : wordFor(p), col = ramp(INK0.word, p);
+      tctx.font = font(0.212 * k);
+      tctx.textAlign = "right"; tctx.textBaseline = "alphabetic";
+      tctx.globalAlpha = blink ? 0.2 : 1;
+      tctx.shadowColor = rgba(col, 0.45); tctx.shadowBlur = 0.03 * k * dpr;
+      tctx.fillStyle = rgba(col);
+      tctx.fillText(word, gx(0.975), Y(G.y + 0.857));
+      tctx.restore();
+    }
+
+    return { resize, enter, frame };
+  })();
+
   // Dans la version 2, le texte du bas s'écrit lettre après lettre, comme les descriptions du jeu
   const hint = $(".hint");
   const hintParts = [...hint.childNodes].flatMap((n) => n.nodeType === 3 ? [n] : [...n.childNodes]).filter((n) => n.nodeType === 3);
@@ -1155,12 +1425,12 @@
     document.documentElement.style.setProperty("--crasse", `url(${c.toDataURL()})`);
   })();
 
-  const views = { moniteur: monitor, remake: recorder };
+  const views = { moniteur: monitor, remake: recorder, zero };
   let view = monitor;
   function setView(name) {
     if (!views[name]) name = "moniteur";
     view = views[name];
-    document.documentElement.classList.toggle("theme-remake", name === "remake");
+    for (const n of Object.keys(views)) document.documentElement.classList.toggle("theme-" + n, n === name && n !== "moniteur");
     for (const c of [gctx, tctx, hctx]) c.clearRect(0, 0, W, H);
     view.enter();
     resize();

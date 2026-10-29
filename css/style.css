@@ -431,3 +431,177 @@ main { max-width: min(920px, calc((100vh - 190px) * 2.5 + 24px)); }
   .theme-remake .ico { width: 42px; height: 42px; }
   .theme-remake .hint { font-size: 16px; }
 }
+
+
+/* ---------- Version 3 : l'écran d'état de Resident Evil Zero ----------
+   Le petit écran et son panneau de métal peint crème sont dessinés dans le canevas, mot d'état compris.
+   Autour, le menu du jeu : boutons rectangulaires sombres gravés en serif, plaque du nom vissée,
+   boîte de texte noire en Avenir sous son cadre de métal, molette moletée à gauche. */
+.theme-zero {
+  --avenir: "Avenir Next", Avenir, "Segoe UI", "Helvetica Neue", system-ui, sans-serif;
+  --goudy: "Sorts Mill Goudy", "Goudy Old Style", Garamond, "Times New Roman", serif;
+  --bone: #e4dfd4;
+  --gold: #c9a656;
+  /* Grain de la peinture crème : le carreau est fabriqué par app.js, une teinte unie tant qu'il manque */
+  --creme: linear-gradient(#c3bdaf, #c3bdaf);
+}
+.theme-zero body, .theme-zero.focus body {
+  background: radial-gradient(ellipse at 50% 30%, #1f1d1a 0%, #0e0d0b 55%, #050505 100%) fixed #080807;
+}
+.theme-zero main { gap: 16px; }
+.theme-zero .monitor, .theme-zero.focus .monitor { padding: 0; background: none; box-shadow: none; border-radius: 0; }
+.theme-zero .screen, .theme-zero.focus .screen {
+  aspect-ratio: 279 / 145;
+  background: none; box-shadow: none; border-radius: 0;
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.85));
+}
+.theme-zero .screen::after, .theme-zero .tag { display: none; }
+/* Le mot est dessiné sur la vitre ; le texte reste là pour les lecteurs d'écran */
+.theme-zero .status {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+
+/* La plaque du nom, comme « Rebecca » : pierre grise vissée aux deux bouts, lettres sombres */
+.theme-zero .phase-plate {
+  display: block;
+  align-self: center;
+  min-width: min(100%, 11em);
+  box-sizing: border-box;
+  padding: 0.16em 1.7em 0.1em;
+  text-align: center;
+  font: 400 clamp(21px, 3.4vw, 28px)/1.25 var(--goudy);
+  letter-spacing: 0.03em;
+  color: #262422;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+  border-radius: 14px / 50%;
+  background:
+    radial-gradient(circle at 0.75em 50%, #f2efe8 0 0.08em, #6d6a64 0.13em, #2e2c29 0.2em, rgba(0, 0, 0, 0) 0.24em),
+    radial-gradient(circle at calc(100% - 0.75em) 50%, #f2efe8 0 0.08em, #6d6a64 0.13em, #2e2c29 0.2em, rgba(0, 0, 0, 0) 0.24em),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 40%, rgba(0, 0, 0, 0.25)),
+    var(--creme) 0 0 / 110px,
+    #a6a49f;
+  background-blend-mode: normal, normal, normal, multiply, normal;
+  box-shadow: 0 0 0 1px #1d1c1a, inset 0 1px 0 rgba(255, 255, 255, 0.6), inset 0 -2px 3px rgba(0, 0, 0, 0.45), 0 3px 8px rgba(0, 0, 0, 0.85);
+  transition: opacity 0.5s;
+}
+.theme-zero.focus .phase-plate {
+  position: fixed; z-index: 10;
+  top: max(12px, env(safe-area-inset-top, 0px)); left: 50%;
+  transform: translateX(-50%);
+  opacity: 0; pointer-events: none;
+}
+.theme-zero.focus.peek .phase-plate { opacity: 1; }
+
+/* Les boutons du haut, comme « Partenaire », « Carte », « Fichiers » : posés sur la barre de métal crème */
+.theme-zero .bar { order: -1; justify-content: center; gap: 14px 22px; }
+.theme-zero .controls {
+  justify-content: center; gap: 10px 12px;
+  padding: 9px 12px 10px;
+  border-radius: 4px;
+  background:
+    linear-gradient(180deg, rgba(255, 250, 240, 0.2), rgba(0, 0, 0, 0) 30%, rgba(30, 20, 10, 0.3)),
+    var(--creme) 0 0 / 160px;
+  box-shadow: 0 0 0 1px #000, inset 0 1px 0 rgba(255, 252, 244, 0.7), inset 0 -2px 2px rgba(0, 0, 0, 0.45), 0 6px 14px rgba(0, 0, 0, 0.85);
+}
+.theme-zero button, .theme-zero button.primary {
+  min-width: 0;
+  padding: 7px 18px 6px;
+  font: 700 17px/1.15 var(--font-plate);
+  letter-spacing: 0.01em; text-transform: none;
+  color: var(--bone);
+  text-shadow: 0 1px 0 #000, 0 0 3px rgba(0, 0, 0, 0.9);
+  border: 0; border-radius: 7px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0) 35%, rgba(0, 0, 0, 0.3)),
+    var(--creme) 0 0 / 90px,
+    #4b4540;
+  background-blend-mode: normal, multiply, normal;
+  box-shadow: 0 0 0 1px #15130f, 0 0 0 2px rgba(255, 250, 240, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.25), inset 0 -2px 3px rgba(0, 0, 0, 0.55), 0 3px 5px rgba(0, 0, 0, 0.5);
+}
+.theme-zero button:hover:not(:disabled) { color: #fff; border: 0; box-shadow: 0 0 0 1px #15130f, 0 0 0 2px rgba(255, 250, 240, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -2px 3px rgba(0, 0, 0, 0.55), 0 3px 5px rgba(0, 0, 0, 0.5); }
+.theme-zero button[aria-pressed="true"] { color: var(--gold); }
+.theme-zero.focus .bar { background: rgba(0, 0, 0, 0.9); box-shadow: 0 0 0 1px #2c2b29; }
+
+/* Sessions : des cases d'inventaire en toile, la case en cours entourée d'or comme l'objet choisi */
+.theme-zero .sessions { gap: 12px; font: 700 16px var(--font-plate); letter-spacing: 0.01em; text-transform: none; color: var(--bone); text-shadow: 0 1px 0 #000; }
+.theme-zero .dots { gap: 5px; }
+.theme-zero .dot {
+  position: relative;
+  width: 34px; height: 34px;
+  border: 0; border-radius: 3px;
+  background: var(--creme) 0 0 / 80px, #77706a;
+  background-blend-mode: multiply;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.55), inset 0 0 9px rgba(0, 0, 0, 0.7);
+}
+.theme-zero .dot.done {
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 30'%3E%3Crect x='2' y='4' width='36' height='22' rx='2' fill='%2333363a'/%3E%3Cpath d='M3 16h9l1.5-1 1.5 1 1.5-2.5 2 7 2.5-11 2 8 1.5-3 1.5 2.5 1.5-1.5 1.5 1.5h10' fill='none' stroke='%2316876a' stroke-width='1.6' stroke-linejoin='round'/%3E%3C/svg%3E") center / 84% no-repeat,
+    var(--creme) 0 0 / 80px, #77706a;
+  background-blend-mode: normal, multiply, normal;
+}
+.theme-zero .dot.now { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.55), inset 0 0 9px rgba(0, 0, 0, 0.7), 0 0 0 2px var(--gold), 0 0 6px rgba(201, 166, 86, 0.5); }
+
+/* La boîte de texte du bas : fond noir, cadre de métal, molette moletée à gauche, petite flèche à droite */
+.theme-zero .hint, .theme-zero .settings {
+  position: relative;
+  border: 3px solid transparent;
+  border-radius: 2px;
+  background:
+    linear-gradient(#050505, #050505) padding-box,
+    linear-gradient(180deg, #dcdad4 0%, #85827b 22%, #3d3b38 50%, #6d6a64 78%, #b9b6ae 100%) border-box;
+  box-shadow: 0 0 0 1px #000, inset 0 0 14px rgba(0, 0, 0, 0.95), 0 6px 14px rgba(0, 0, 0, 0.8);
+  font-family: var(--avenir);
+  color: #e9e9e7;
+}
+.theme-zero .hint {
+  margin-inline: 30px 4px;
+  padding: 14px 40px 18px 18px;
+  font-size: 17px;
+  line-height: 1.45;
+}
+.theme-zero .hint::before {
+  content: "";
+  position: absolute; left: -31px; top: 50%;
+  width: 20px; height: 48px; transform: translateY(-50%);
+  border-radius: 5px / 9px;
+  background:
+    repeating-linear-gradient(180deg, rgba(0, 0, 0, 0.75) 0 1.5px, rgba(255, 255, 255, 0.18) 1.5px 2.5px, rgba(0, 0, 0, 0) 2.5px 4px),
+    linear-gradient(90deg, #131313 0%, #5a5853 25%, #c9c6bf 45%, #77746e 62%, #2a2927 85%, #0c0c0c 100%);
+  box-shadow: 0 0 0 1px #000, 3px 0 4px rgba(0, 0, 0, 0.7);
+}
+.theme-zero .hint::after {
+  content: "";
+  position: absolute; right: 6px; bottom: 6px;
+  width: 22px; height: 22px;
+  border-radius: 2px;
+  background:
+    linear-gradient(135deg, rgba(0, 0, 0, 0) 46%, #d8d5ce 47% 53%, rgba(0, 0, 0, 0) 54%) center / 9px 9px no-repeat,
+    linear-gradient(180deg, #8f8c86, #3f3d3a);
+  box-shadow: inset 0 0 0 1px #1b1a18, inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+.theme-zero kbd { border-color: #6d6a64; color: #e9e9e7; }
+.theme-zero .settings { padding: 18px; }
+.theme-zero .field { font-size: 15px; letter-spacing: 0.01em; text-transform: none; color: #b9b6ae; }
+.theme-zero .field input[type="number"], .theme-zero .field select {
+  font: 400 17px var(--avenir); color: #e9e9e7;
+  background: #121211; border-color: #55534e; border-radius: 0;
+}
+.theme-zero .check { font-size: 16px; color: #e9e9e7; }
+.theme-zero .check input { accent-color: #16876a; }
+
+/* Taille : le panneau entier tient dans la hauteur, surtout en paysage */
+.theme-zero main { max-width: min(900px, max(300px, calc((100vh - 300px) * 1.924))); }
+.theme-zero.focus main { max-width: min(1300px, calc((100vh - 40px) * 1.924)); }
+@supports (height: 100dvh) {
+  .theme-zero main { max-width: min(900px, max(300px, calc((100dvh - 300px) * 1.924))); }
+  .theme-zero.focus main { max-width: min(1300px, calc((100dvh - 40px) * 1.924)); }
+}
+@media (max-height: 520px) {
+  .theme-zero main { max-width: min(900px, calc((100dvh - 110px) * 1.924)); }
+  .theme-zero .phase-plate { font-size: 19px; }
+}
+@media (max-width: 560px) {
+  .theme-zero main, .theme-zero.focus main { max-width: 100%; }
+  .theme-zero .controls { gap: 8px; }
+  .theme-zero button, .theme-zero button.primary { flex: 1 1 auto; font-size: 16px; padding-inline: 12px; }
+  .theme-zero .hint { font-size: 16px; }
+}
