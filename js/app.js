@@ -1160,7 +1160,19 @@
       }
       return out;
     }
-    const S = Object.fromEntries(Object.entries(SHAPES).map(([n, pts]) => [n, sample(pts)]));
+    // Pointes un peu adoucies (demande de Fabien) : léger flou gaussien le long de la largeur
+    function round(src, sigma = 0.004) {
+      const r = Math.ceil(3 * sigma * N), w = [];
+      for (let j = -r; j <= r; j++) w.push(Math.exp(-0.5 * (j / (sigma * N)) ** 2));
+      const sum = w.reduce((a, b) => a + b, 0), out = new Float32Array(N + 1);
+      for (let n = 0; n <= N; n++) {
+        let v = 0;
+        for (let j = -r; j <= r; j++) v += w[j + r] * src[Math.max(0, Math.min(N, n + j))];
+        out[n] = v / sum;
+      }
+      return out;
+    }
+    const S = Object.fromEntries(Object.entries(SHAPES).map(([n, pts]) => [n, round(sample(pts))]));
     // Même passage que les encres : OK jusqu'à 0,3, Attention jaune vers 0,5, orange vers 0,68, Danger après 0,86
     const STEPS = [[0, S.ok], [0.3, S.ok], [0.5, S.jaune], [0.68, S.orange], [0.86, S.danger], [1, S.danger]];
     const INK0 = {
